@@ -1,59 +1,18 @@
-# Welcome to Your New Wails3 Project!
+# KiCad Library Manager
 
-Congratulations on generating your Wails3 application! This README will guide you through the next steps to get your project up and running.
+Built with Go and Wails
 
-## Getting Started
+A system tray app which manages kicad symbol, design block, footprint and 3D files. Everything is not yet tested but it wont break your KiCad.
 
-1. Navigate to your project directory in the terminal.
+Makes neat subfolders inside a user chosen folder by component category. Watches a user specified folder for files, folders and zip files with kicad valid files. Automatically shows UI and tells the user what kind of files it detected and what the user wants to do with them. Supports drag and drop.
 
-2. To run your application in development mode, use the following command:
+## Why
 
-   ```
-   wails3 dev
-   ```
+1. Manually adding parts to KiCad is a multi-step process involving:
+2. Unzipping downloaded assets.
+3. Moving files to specific library folders.
+4. Manually patching 3D model paths within footprint files.
+5. Appending symbol definitions to .kicad_sym library files.
+6. Registering new libraries in KiCad's global sym-lib-table and fp-lib-table.
 
-   This will start your application and enable hot-reloading for both frontend and backend changes.
-
-3. To build your application for production, use:
-
-   ```
-   wails3 build
-   ```
-
-   This will create a production-ready executable in the `build` directory.
-
-## Exploring Wails3 Features
-
-Now that you have your project set up, it's time to explore the features that Wails3 offers:
-
-1. **Check out the examples**: The best way to learn is by example. Visit the `examples` directory in the `v3/examples` directory to see various sample applications.
-
-2. **Run an example**: To run any of the examples, navigate to the example's directory and use:
-
-   ```
-   go run .
-   ```
-
-   Note: Some examples may be under development during the alpha phase.
-
-3. **Explore the documentation**: Visit the [Wails3 documentation](https://v3.wails.io/) for in-depth guides and API references.
-
-4. **Join the community**: Have questions or want to share your progress? Join the [Wails Discord](https://discord.gg/JDdSxwjhGf) or visit the [Wails discussions on GitHub](https://github.com/wailsapp/wails/discussions).
-
-## Project Structure
-
-Take a moment to familiarize yourself with your project structure:
-
-- `frontend/`: Contains your frontend code (HTML, CSS, JavaScript/TypeScript)
-- `main.go`: The entry point of your Go backend
-- `app.go`: Define your application structure and methods here
-- `wails.json`: Configuration file for your Wails project
-
-## Next Steps
-
-1. Modify the frontend in the `frontend/` directory to create your desired UI.
-2. Add backend functionality in `main.go`.
-3. Use `wails3 dev` to see your changes in real-time.
-4. When ready, build your application with `wails3 build`.
-
-Happy coding with Wails3! If you encounter any issues or have questions, don't hesitate to consult the documentation or reach out to the Wails community.
+### This tool reduces these steps to a single confirmation click.
