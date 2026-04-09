@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -97,23 +98,23 @@ func InitializeKiCadLibraries(conf Config) {
 
 	fmt.Println("--> Performing first-launch KiCad library registration...")
 
-	// Default to the first repository for initial registration
+	UpdateKiCadEnvVar(conf.BaseLibPath)
+
 	defaultRepo := conf.Repositories[0].Name
 	targetRepoRoot := filepath.Join(conf.BaseLibPath, defaultRepo)
 
 	for _, category := range conf.Categories {
-		// 1. Setup Footprint Library Folder
+		// Setup Footprint Library Folder
 		prettyPath := filepath.Join(targetRepoRoot, "footprints", fmt.Sprintf("%s.pretty", category))
 		os.MkdirAll(prettyPath, os.ModePerm)
 		UpdateKiCadFpTable(category, prettyPath)
 
-		// 2. Setup Symbol Library File
+		// Setup Symbol Library File
 		symDir := filepath.Join(targetRepoRoot, "symbols")
 		symPath := filepath.Join(symDir, fmt.Sprintf("%s.kicad_sym", category))
 
 		if _, err := os.Stat(symPath); os.IsNotExist(err) {
 			os.MkdirAll(symDir, os.ModePerm)
-			// Initialize with a valid empty KiCad Symbol Library header
 			emptyLib := "(kicad_symbol_lib (version 20211014) (generator kicad_symbol_editor)\n)\n"
 			os.WriteFile(symPath, []byte(emptyLib), 0644)
 		}
@@ -167,6 +168,64 @@ func injectSymbol(sourceFile, masterFile, category, footprintName string) error 
 	return os.WriteFile(masterFile, []byte(newMasterContent), 0644)
 }
 
+func UpdateKiCadEnvVar(basePath string) error {
+	configDir, _ := os.UserConfigDir()
+	kicadBase := filepath.Join(configDir, "kicad")
+
+	entries, err := os.ReadDir(kicadBase)
+	if err != nil {
+		return err
+	}
+
+	versionRegex := regexp.MustCompile(`^\d+(\.\d+)?$`)
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !versionRegex.MatchString(entry.Name()) {
+			continue
+		}
+
+		commonJsonPath := filepath.Join(kicadBase, entry.Name(), "kicad_common.json")
+
+		var configData map[string]interface{}
+		fileBytes, err := os.ReadFile(commonJsonPath)
+		if err == nil {
+			json.Unmarshal(fileBytes, &configData)
+		}
+
+		if configData == nil {
+			configData = make(map[string]interface{})
+		}
+
+		// 1. Safely handle the "environment" section
+		env, ok := configData["environment"].(map[string]interface{})
+		if !ok || env == nil {
+			env = make(map[string]interface{})
+			configData["environment"] = env
+		}
+
+		// 2. Safely handle the "vars" section
+		vars, ok := env["vars"].(map[string]interface{})
+		if !ok || vars == nil {
+			vars = make(map[string]interface{})
+			env["vars"] = vars
+		}
+
+		// 3. Update the variable
+		vars["KICAD_USER_3DMODEL_DIR"] = basePath
+
+		newJson, err := json.MarshalIndent(configData, "", "  ")
+		if err != nil {
+			continue
+		}
+
+		err = os.WriteFile(commonJsonPath, newJson, 0644)
+		if err == nil {
+			fmt.Printf("--> Registered KICAD_USER_3DMODEL_DIR in KiCad %s\n", entry.Name())
+		}
+	}
+	return nil
+}
+
 func patchFootprint3DPath(src, dest, category, modelFileName, repoName string) error {
 	contentBytes, err := os.ReadFile(src)
 	if err != nil {
@@ -174,9 +233,23 @@ func patchFootprint3DPath(src, dest, category, modelFileName, repoName string) e
 	}
 	content := string(contentBytes)
 
-	re := regexp.MustCompile(`(?i)\(model\s+"?([^"\)]+\.(?:step|stp|wrl))"?`)
-	newModelPath := fmt.Sprintf(`(model "${KICAD_USER_3DMODEL_DIR}/%s/packages3d/%s.3dshapes/%s"`, repoName, category, modelFileName)
-	patchedContent := re.ReplaceAllString(content, newModelPath)
+	// Define the new path string with the environment variable
+	newModelPath := fmt.Sprintf("(model \"${KICAD_USER_3DMODEL_DIR}/%s/packages3d/%s.3dshapes/%s\"\n    (offset (xyz 0 0 0)) (scale (xyz 1 1 1)) (rotate (xyz 0 0 0))\n  )", repoName, category, modelFileName)
+
+	re := regexp.MustCompile(`(?i)\(model\s+"?([^"\)]+\.(?:step|stp|wrl))"?.*?\n?\s*\)`)
+
+	var patchedContent string
+	if re.MatchString(content) {
+		// Scenario 1: Model exists, replace it
+		patchedContent = re.ReplaceAllString(content, newModelPath)
+	} else {
+		// Scenario 2: No model tag, inject it before the final closing bracket
+		lastParenIdx := strings.LastIndex(content, ")")
+		if lastParenIdx == -1 {
+			return fmt.Errorf("malformed footprint file")
+		}
+		patchedContent = content[:lastParenIdx] + "  " + newModelPath + "\n)"
+	}
 
 	return os.WriteFile(dest, []byte(patchedContent), 0644)
 }
