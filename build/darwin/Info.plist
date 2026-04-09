@@ -60,6 +60,10 @@
         </array>
         {{end}}
         <key>LSUIElement</key>
-        <true/>
+          <true/>
+        <key>NSDownloadsFolderUsageDescription</key>
+          <string>This app needs access to your Downloads folder to detect newly downloaded KiCad libraries.</string>
+        <key>NSDocumentsFolderUsageDescription</key>
+          <string>This app needs access to your Documents folder to manage your KiCad library repository.</string>
     </dict>
 </plist>
