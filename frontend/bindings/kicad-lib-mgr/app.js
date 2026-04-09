@@ -107,15 +107,6 @@ export function StartWatcher() {
 }
 
 /**
- * ToggleAutoStart creates a pure-go startup batch script for Windows.
- * @param {boolean} enable
- * @returns {$CancellablePromise<void>}
- */
-export function ToggleAutoStart(enable) {
-    return $Call.ByID(1830522718, enable);
-}
-
-/**
  * UndoAction reverts a previously imported component
  * @param {string} id
  * @returns {$CancellablePromise<boolean>}
