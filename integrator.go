@@ -18,10 +18,11 @@ func IntegrateParts(assets *KiCadAssets, category string, targetRepoRoot string,
 	symbolsFolder := filepath.Join(targetRepoRoot, "symbols")
 	blocksFolder := filepath.Join(targetRepoRoot, "blocks", category)
 
-	os.MkdirAll(prettyFolder, os.ModePerm)
-	os.MkdirAll(shapesFolder, os.ModePerm)
-	os.MkdirAll(symbolsFolder, os.ModePerm)
-	os.MkdirAll(blocksFolder, os.ModePerm)
+	for _, dir := range []string{prettyFolder, shapesFolder, symbolsFolder, blocksFolder} {
+		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+			return nil, "", "", fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
 
 	var finalModelName string
 	var addedFiles []string
@@ -32,9 +33,12 @@ func IntegrateParts(assets *KiCadAssets, category string, targetRepoRoot string,
 	if assets.ModelPath != "" {
 		finalModelName = filepath.Base(assets.ModelPath)
 		destModelPath := filepath.Join(shapesFolder, finalModelName)
-		copyFile(assets.ModelPath, destModelPath)
-		addedFiles = append(addedFiles, destModelPath)
-		fmt.Println("--> Copied 3D Model to:", destModelPath)
+		if err := copyFile(assets.ModelPath, destModelPath); err != nil {
+			fmt.Println("Warning: failed to copy 3D model:", err)
+		} else {
+			addedFiles = append(addedFiles, destModelPath)
+			fmt.Println("--> Copied 3D Model to:", destModelPath)
+		}
 	}
 
 	// 2. Handle Footprints
@@ -43,17 +47,20 @@ func IntegrateParts(assets *KiCadAssets, category string, targetRepoRoot string,
 		finalFootprintName = strings.TrimSuffix(filepath.Base(assets.FootprintPath), ".kicad_mod")
 		destFootprintPath := filepath.Join(prettyFolder, filepath.Base(assets.FootprintPath))
 
+		var fpErr error
 		if finalModelName != "" {
-			patchFootprint3DPath(assets.FootprintPath, destFootprintPath, category, finalModelName, repoName)
+			fpErr = patchFootprint3DPath(assets.FootprintPath, destFootprintPath, category, finalModelName, repoName)
 			fmt.Println("--> Copied & Patched Footprint to:", destFootprintPath)
 		} else {
-			copyFile(assets.FootprintPath, destFootprintPath)
+			fpErr = copyFile(assets.FootprintPath, destFootprintPath)
 			fmt.Println("--> Copied Footprint to:", destFootprintPath)
 		}
-		addedFiles = append(addedFiles, destFootprintPath)
-
-		// Usability: Auto-register this category's footprint library in all detected KiCad versions
-		UpdateKiCadFpTable(category, prettyFolder)
+		if fpErr != nil {
+			fmt.Println("Warning: failed to write footprint:", fpErr)
+		} else {
+			addedFiles = append(addedFiles, destFootprintPath)
+			UpdateKiCadFpTable(category, prettyFolder)
+		}
 	}
 
 	// 3. Handle Symbols
@@ -61,29 +68,54 @@ func IntegrateParts(assets *KiCadAssets, category string, targetRepoRoot string,
 		masterSym = filepath.Join(symbolsFolder, fmt.Sprintf("%s.kicad_sym", category))
 		backupSym = masterSym + ".bak"
 
+		masterExisted := false
 		if _, err := os.Stat(masterSym); err == nil {
-			copyFile(masterSym, backupSym)
+			masterExisted = true
+			if err := copyFile(masterSym, backupSym); err != nil {
+				return addedFiles, "", "", fmt.Errorf("failed to back up symbol library: %w", err)
+			}
 		}
 
-		injectSymbol(assets.SymbolPath, masterSym, category, finalFootprintName)
+		if err := injectSymbol(assets.SymbolPath, masterSym, category, finalFootprintName); err != nil {
+			// Roll back the backup so we don't leave a stale .bak file
+			if masterExisted {
+				os.Rename(backupSym, masterSym)
+			} else {
+				os.Remove(masterSym)
+			}
+			return addedFiles, "", "", fmt.Errorf("failed to inject symbol: %w", err)
+		}
 		fmt.Println("--> Injected & Sanitized Symbol into:", masterSym)
-
-		// Usability: Auto-register this category's symbol library in all detected KiCad versions
 		UpdateKiCadSymTable(category, masterSym)
+
+		if !masterExisted {
+			// Master was newly created — track it in addedFiles so UndoAction can
+			// delete it cleanly. Clear the backup/master return values so UndoAction
+			// doesn't attempt a backup-restore (there is no backup).
+			addedFiles = append(addedFiles, masterSym)
+			masterSym = ""
+			backupSym = ""
+		}
 	}
 
 	// 4. Handle Design Blocks
 	if assets.SchBlockPath != "" {
 		destSch := filepath.Join(blocksFolder, filepath.Base(assets.SchBlockPath))
-		copyFile(assets.SchBlockPath, destSch)
-		addedFiles = append(addedFiles, destSch)
-		fmt.Println("--> Copied Schematic Design Block to:", destSch)
+		if err := copyFile(assets.SchBlockPath, destSch); err != nil {
+			fmt.Println("Warning: failed to copy schematic block:", err)
+		} else {
+			addedFiles = append(addedFiles, destSch)
+			fmt.Println("--> Copied Schematic Design Block to:", destSch)
+		}
 	}
 	if assets.PcbBlockPath != "" {
 		destPcb := filepath.Join(blocksFolder, filepath.Base(assets.PcbBlockPath))
-		copyFile(assets.PcbBlockPath, destPcb)
-		addedFiles = append(addedFiles, destPcb)
-		fmt.Println("--> Copied PCB Design Block to:", destPcb)
+		if err := copyFile(assets.PcbBlockPath, destPcb); err != nil {
+			fmt.Println("Warning: failed to copy PCB block:", err)
+		} else {
+			addedFiles = append(addedFiles, destPcb)
+			fmt.Println("--> Copied PCB Design Block to:", destPcb)
+		}
 	}
 
 	return addedFiles, masterSym, backupSym, nil

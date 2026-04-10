@@ -299,9 +299,13 @@ btnBrowse.addEventListener('click', async () => {
 btnSaveSetup.addEventListener('click', async () => {
     const path = libPathInput.value;
     if (path) {
-        await SaveSetup(path);
-        await loadConfig(); 
-        if (fileQueue.length === 0) await HideWindow();
+        try {
+            await SaveSetup(path);
+            await loadConfig();
+            if (fileQueue.length === 0) await HideWindow();
+        } catch (err) {
+            alert("Failed to save setup: " + err);
+        }
     }
 });
 

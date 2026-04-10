@@ -162,11 +162,16 @@ func (a *App) SelectWatchDirectory() string {
 	return dir
 }
 
-func (a *App) SaveSetup(path string) {
+func (a *App) SaveSetup(path string) error {
 	conf := LoadConfig()
 	conf.BaseLibPath = path
-	SaveConfig(conf)
+	if err := SaveConfig(conf); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
 	fmt.Println("--> Saved new Base Library Path:", path)
+	// Immediately register KiCad tables and env var so parts appear without restart
+	InitializeKiCadLibraries(conf)
+	return nil
 }
 
 func (a *App) AddRepository(name string, url string) error {
@@ -287,7 +292,7 @@ func (a *App) isValidKiCadItem(path string) bool {
 	return false
 }
 
-func (a *App) ProcessFile(filename string, category string, repoName string) {
+func (a *App) ProcessFile(filename string, category string, repoName string) error {
 	fmt.Printf("--> Processing %s into the %s category of %s...\n", filename, category, repoName)
 
 	conf := LoadConfig()
@@ -316,19 +321,16 @@ func (a *App) ProcessFile(filename string, category string, repoName string) {
 
 	fileInfo, err := os.Stat(fullPath)
 	if err != nil {
-		fmt.Println("Error accessing file:", err)
-		return
+		return fmt.Errorf("cannot access file: %w", err)
 	}
 
 	var assets *KiCadAssets
 	var tempDir string
 
-	if fileInfo.IsDir() || filepath.Ext(fullPath) != ".zip" {
+	if fileInfo.IsDir() || strings.ToLower(filepath.Ext(fullPath)) != ".zip" {
 		assets = &KiCadAssets{}
-		scanDir := fullPath
 
 		if !fileInfo.IsDir() {
-			scanDir = filepath.Dir(fullPath)
 			ext := strings.ToLower(filepath.Ext(fullPath))
 			switch ext {
 			case ".kicad_sym":
@@ -343,7 +345,7 @@ func (a *App) ProcessFile(filename string, category string, repoName string) {
 				assets.PcbBlockPath = fullPath
 			}
 		} else {
-			filepath.Walk(scanDir, func(p string, info os.FileInfo, err error) error {
+			filepath.Walk(fullPath, func(p string, info os.FileInfo, err error) error {
 				if err != nil || info.IsDir() {
 					return nil
 				}
@@ -366,50 +368,51 @@ func (a *App) ProcessFile(filename string, category string, repoName string) {
 	} else {
 		assets, tempDir, err = ExtractAndFind(fullPath)
 		if err != nil {
-			fmt.Println("Error extracting file:", err)
-			return
+			return fmt.Errorf("failed to extract zip: %w", err)
 		}
 		defer os.RemoveAll(tempDir)
 	}
 
-	if conf.BaseLibPath != "" {
-		targetRepoRoot := filepath.Join(conf.BaseLibPath, repoName)
-
-		addedFiles, master, backup, err := IntegrateParts(assets, category, targetRepoRoot, repoName)
-		if err != nil {
-			fmt.Println("Integration error:", err)
-		} else {
-			fmt.Println("--> Successfully integrated parts into", repoName)
-
-			newItem := HistoryItem{
-				ID:           fmt.Sprintf("%d", time.Now().UnixNano()),
-				Timestamp:    time.Now().Unix(),
-				Filename:     filepath.Base(fullPath),
-				Category:     category,
-				RepoName:     repoName,
-				AddedFiles:   addedFiles,
-				SymbolMaster: master,
-				SymbolBackup: backup,
-			}
-
-			conf.History = append(conf.History, newItem)
-			if len(conf.History) > 5 {
-				conf.History = conf.History[len(conf.History)-5:]
-			}
-			if err := SaveConfig(conf); err != nil {
-				fmt.Println("Warning: failed to save config:", err)
-			}
-
-			commitMsg := fmt.Sprintf("Added new part from %s into %s", filepath.Base(fullPath), category)
-			go GitSmartSync(targetRepoRoot, commitMsg)
-
-			if !filepath.IsAbs(filename) {
-				os.Remove(fullPath)
-			}
-		}
-	} else {
-		fmt.Println("Error: Base library path is not configured!")
+	if conf.BaseLibPath == "" {
+		return fmt.Errorf("base library path is not configured")
 	}
+
+	targetRepoRoot := filepath.Join(conf.BaseLibPath, repoName)
+
+	addedFiles, master, backup, err := IntegrateParts(assets, category, targetRepoRoot, repoName)
+	if err != nil {
+		return fmt.Errorf("integration failed: %w", err)
+	}
+
+	fmt.Println("--> Successfully integrated parts into", repoName)
+
+	newItem := HistoryItem{
+		ID:           fmt.Sprintf("%d", time.Now().UnixNano()),
+		Timestamp:    time.Now().Unix(),
+		Filename:     filepath.Base(fullPath),
+		Category:     category,
+		RepoName:     repoName,
+		AddedFiles:   addedFiles,
+		SymbolMaster: master,
+		SymbolBackup: backup,
+	}
+
+	conf.History = append(conf.History, newItem)
+	if len(conf.History) > 5 {
+		conf.History = conf.History[len(conf.History)-5:]
+	}
+	if err := SaveConfig(conf); err != nil {
+		fmt.Println("Warning: failed to save config:", err)
+	}
+
+	commitMsg := fmt.Sprintf("Added new part from %s into %s", filepath.Base(fullPath), category)
+	go GitSmartSync(targetRepoRoot, commitMsg)
+
+	if !filepath.IsAbs(filename) {
+		os.Remove(fullPath)
+	}
+
+	return nil
 }
 
 func (a *App) HideWindow() {
