@@ -3,26 +3,26 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "librarymanagerw3.exe"
+name: "LibraryManagerW3"
 arch: ${GOARCH}
 platform: "linux"
 version: "0.1.0"
 section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
-description: "A LibraryManagerW3 application"
-vendor: "My Company"
+description: "Automatic KiCad component library manager"
+vendor: "KiCad Library Manager"
 homepage: "https://wails.io"
 license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/librarymanagerw3.exe"
-    dst: "/usr/local/bin/librarymanagerw3.exe"
+  - src: "./bin/LibraryManagerW3"
+    dst: "/usr/local/bin/LibraryManagerW3"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/librarymanagerw3.exe.png"
-  - src: "./build/linux/librarymanagerw3.exe.desktop"
-    dst: "/usr/share/applications/librarymanagerw3.exe.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/LibraryManagerW3.png"
+  - src: "./build/linux/LibraryManagerW3.desktop"
+    dst: "/usr/share/applications/LibraryManagerW3.desktop"
 
 # Default dependencies for Debian 12/Ubuntu 22.04+ with WebKit 4.1
 depends:

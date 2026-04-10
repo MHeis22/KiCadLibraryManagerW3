@@ -3,12 +3,11 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 )
 
-// Define the standard tray icon for Mac/Linux.
-// Note: The //go:embed directive was removed because build/appicon.png
-// is currently missing. Add it back once you place your icon file.
+//go:embed build/appicon.png
 var trayIcon []byte
 
 // ToggleAutoStart provides a dummy implementation for Mac/Linux.

@@ -186,8 +186,7 @@ async function processNextInQueue() {
     }
 
     let currentFilename = fileQueue[0];
-    const normalizedPath = currentFilename.replace(/\\/g, '/');
-    const baseName = normalizedPath.split('/').pop();
+    const baseName = currentFilename.split(/[\\/]/).pop();
     
     mainTitle.innerText = "New KiCad Part Detected";
     filenameDisplay.innerHTML = `<strong>${baseName}</strong><br><small style="color: var(--text-muted);">Analyzing contents...</small>`;

@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-// kicadVersionRegex matches KiCad version directory names like "8" or "8.0"
-var kicadVersionRegex = regexp.MustCompile(`^\d+(\.\d+)?$`)
+// kicadVersionRegex matches KiCad version directory names like "8", "8.0", or "8.0.0"
+var kicadVersionRegex = regexp.MustCompile(`^\d+(\.\d+)*$`)
 
 // IntegrateParts moves extracted assets and returns tracking info for Undo functionality
 func IntegrateParts(assets *KiCadAssets, category string, targetRepoRoot string, repoName string) ([]string, string, string, error) {
