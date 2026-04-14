@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -21,6 +22,7 @@ type App struct {
 	watcherCtx    context.Context
 	watcherCancel context.CancelFunc
 	mu            sync.Mutex // protects all LoadConfig/SaveConfig pairs
+	processing    sync.Map
 }
 
 func NewApp(app *application.App, window *application.WebviewWindow) *App { // Updated here as well
@@ -56,11 +58,25 @@ func (a *App) StartWatcher() {
 // Helper function to safely wait for a file to finish downloading/copying
 func waitForFileReady(path string) bool {
 	maxRetries := 30 // Wait up to 15 seconds (30 * 500ms)
+	var lastSize int64 = -1
+
 	for i := 0; i < maxRetries; i++ {
 		file, err := os.OpenFile(path, os.O_RDONLY, 0666)
 		if err == nil {
-			file.Close() // File is free and readable!
-			return true
+			info, statErr := file.Stat()
+			file.Close() // Close immediately so we don't lock it
+
+			if statErr == nil {
+				currentSize := info.Size()
+				// 1. Ignore 0-byte browser placeholders entirely
+				if currentSize > 0 {
+					// 2. Ensure the file is completely finished growing
+					if currentSize == lastSize {
+						return true
+					}
+					lastSize = currentSize
+				}
+			}
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
@@ -105,7 +121,22 @@ func (a *App) watchFolder(ctx context.Context) {
 			if event.Has(fsnotify.Create) || event.Has(fsnotify.Rename) {
 				ext := strings.ToLower(filepath.Ext(event.Name))
 				if ext == ".epw" || ext == ".zip" {
+
+					// --- Deduplication Check ---
+					// If the file is already being processed, ignore this duplicate event
+					if _, loaded := a.processing.LoadOrStore(event.Name, true); loaded {
+						continue
+					}
+
 					go func(path string) {
+						// Ensure we remove the file from the processing map when done.
+						// We add a small 2-second buffer to swallow any lingering browser events.
+						defer func() {
+							time.AfterFunc(2*time.Second, func() {
+								a.processing.Delete(path)
+							})
+						}()
+
 						if !waitForFileReady(path) {
 							fmt.Println("--> Ignored file (timed out waiting for lock release):", path)
 							return
@@ -489,11 +520,15 @@ func (a *App) GetItemSummary(filename string) string {
 			return nil
 		})
 	} else if strings.HasSuffix(strings.ToLower(fullPath), ".zip") {
-		r, err := zip.OpenReader(fullPath)
+		// Read entire zip into memory instantly to prevent file locking
+		data, err := os.ReadFile(fullPath)
 		if err == nil {
-			defer r.Close()
-			for _, f := range r.File {
-				checkExt(strings.ToLower(filepath.Ext(f.Name)))
+			bytesReader := bytes.NewReader(data)
+			r, err := zip.NewReader(bytesReader, int64(len(data)))
+			if err == nil {
+				for _, f := range r.File {
+					checkExt(strings.ToLower(filepath.Ext(f.Name)))
+				}
 			}
 		}
 	} else {
@@ -559,8 +594,8 @@ func (a *App) GuessCategory(filename string) string {
 		var match string
 		filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
 			if err == nil && !info.IsDir() && strings.HasSuffix(strings.ToLower(info.Name()), ".kicad_sym") {
-				bytes, _ := os.ReadFile(path)
-				match = scanContent(string(bytes))
+				symBytes, _ := os.ReadFile(path)
+				match = scanContent(string(symBytes))
 				if match != "" {
 					return fmt.Errorf("found")
 				}
@@ -571,24 +606,28 @@ func (a *App) GuessCategory(filename string) string {
 	}
 
 	if strings.HasSuffix(strings.ToLower(fullPath), ".zip") {
-		r, err := zip.OpenReader(fullPath)
+		// Read entire zip into memory instantly to prevent file locking
+		data, err := os.ReadFile(fullPath)
 		if err == nil {
-			defer r.Close()
-			for _, f := range r.File {
-				if strings.HasSuffix(strings.ToLower(f.Name), ".kicad_sym") {
-					rc, err := f.Open()
-					if err == nil {
-						bytes, _ := io.ReadAll(rc)
-						rc.Close()
-						return scanContent(string(bytes))
+			bytesReader := bytes.NewReader(data)
+			r, err := zip.NewReader(bytesReader, int64(len(data)))
+			if err == nil {
+				for _, f := range r.File {
+					if strings.HasSuffix(strings.ToLower(f.Name), ".kicad_sym") {
+						rc, err := f.Open()
+						if err == nil {
+							symBytes, _ := io.ReadAll(rc)
+							rc.Close()
+							return scanContent(string(symBytes))
+						}
 					}
 				}
 			}
 		}
 	} else if strings.HasSuffix(strings.ToLower(fullPath), ".kicad_sym") {
-		bytes, err := os.ReadFile(fullPath)
+		symBytes, err := os.ReadFile(fullPath)
 		if err == nil {
-			return scanContent(string(bytes))
+			return scanContent(string(symBytes))
 		}
 	}
 

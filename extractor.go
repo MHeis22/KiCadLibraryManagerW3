@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -30,11 +31,17 @@ func PeekForKiCad(filePath string) bool {
 		return false
 	}
 
-	r, err := zip.OpenReader(filePath)
+	// --- Memory Buffer Approach ---
+	// Read into memory instantly to avoid locking the file while the browser is handling it
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return false
 	}
-	defer r.Close()
+
+	r, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	if err != nil {
+		return false // Fails gracefully if the zip is actively downloading and incomplete
+	}
 
 	for _, f := range r.File {
 		if !f.FileInfo().IsDir() {
