@@ -6,29 +6,56 @@
     <title>KiCad Library Manager</title>
     <link rel="stylesheet" href="./src/app.css">
     <style>
-        .view { display: flex; flex-direction: column; flex-grow: 1; height: 100%; overflow-y: auto;}
+        /* Custom sleek scrollbars for the entire app */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #4a4a5a;
+            border-radius: 10px;
+            border: 2px solid var(--bg-color, #1e1e24);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: #6a6a7a;
+        }
+
+        .view { display: flex; flex-direction: column; flex-grow: 1; height: 100%; overflow-y: hidden;}
         .view.hidden { display: none; }
         .file-input-group { display: flex; gap: 8px; margin-top: 8px; margin-bottom: 12px; }
         .file-input-group input { flex-grow: 1; cursor: pointer; font-size: 0.85rem;}
         .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
         .btn-icon { background: transparent; border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; cursor: pointer; padding: 4px 8px; font-size: 1.1rem; transition: 0.2s; }
         .btn-icon:hover { color: var(--text-main); background: var(--btn-secondary); }
-        .repo-list { background: var(--bg-color); border: 1px solid var(--border); border-radius: 6px; padding: 8px; max-height: 200px; overflow-y: auto; margin-bottom: 16px; list-style-type: none; margin-top: 8px; padding-left: 12px; }
+        
+        .repo-list { background: var(--bg-color); border: 1px solid var(--border); border-radius: 6px; padding: 8px; max-height: 200px; overflow-y: auto; margin-bottom: 8px; list-style-type: none; padding-left: 12px; padding-right: 4px;}
         .repo-list li { font-size: 0.9rem; padding: 4px 0; border-bottom: 1px solid var(--border); color: var(--text-main); }
         .repo-list li:last-child { border-bottom: none; }
         .repo-list li span { color: var(--text-muted); font-size: 0.8rem; margin-left: 8px; }
-        .add-repo-box { border: 1px dashed var(--border); padding: 12px; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;}
-        .add-repo-box input { width: 100%; box-sizing: border-box; }
         
-        .history-list { list-style: none; padding: 0; margin: 8px 0 16px 0; background: var(--bg-color); border-radius: 6px; border: 1px solid var(--border); max-height: 200px; overflow-y: auto;}
+        .history-list { list-style: none; padding: 0; margin: 8px 0 16px 0; background: var(--bg-color); border-radius: 6px; border: 1px solid var(--border); flex-grow: 1; overflow-y: auto; padding-right: 4px;}
         .history-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 0.85rem;}
         .history-item:last-child { border-bottom: none; }
         .btn-undo { background: #ff5555; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; font-weight: bold;}
         .btn-undo:hover { background: #ff3333; }
         .history-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;}
+
+        /* Tabs and Toggles CSS */
+        .tab-nav { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+        .tab-btn { background: transparent; border: none; color: var(--text-muted); padding: 6px 12px; cursor: pointer; border-radius: 4px; font-size: 0.95rem; font-weight: bold;}
+        .tab-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-main);}
+        .tab-btn.active { color: var(--text-main); background: var(--btn-secondary); }
+        .tab-content { display: none; flex-direction: column; flex-grow: 1; overflow-y: auto; padding-right: 4px; padding-bottom: 12px;}
+        .tab-content.active { display: flex; }
+        
+        .toggle-nav { display: flex; gap: 8px; margin-bottom: 12px; }
+        .toggle-btn { flex: 1; background: var(--bg-color); border: 1px solid var(--border); color: var(--text-muted); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;}
+        .toggle-btn.active { background: var(--btn-secondary); color: var(--text-main); border-color: var(--border); }
     </style>
 </head>
-<!-- Mark the body as a file drop target for Wails v3 -->
 <body data-file-drop-target>
     <div id="drag-overlay">
         <div>📁 Drop KiCad Files or Folders Here</div>
@@ -85,44 +112,64 @@
 
         <!-- VIEW 3: LIBRARY MANAGER & SETTINGS -->
         <div id="settings-view" class="view hidden">
-            <h2 class="title" style="margin-bottom: 8px;">Settings & Libraries</h2>
-            
-            <label>Folder to Watch for New Downloads:</label>
-            <div class="file-input-group">
-                <input type="text" id="watch-dir-input" readonly>
-                <button class="btn btn-secondary" id="btn-browse-watch">Change</button>
+            <div class="header-row" style="align-items: center; margin-bottom: 8px;">
+                <h2 class="title" style="margin-bottom: 0;">Settings</h2>
+                <button class="btn btn-secondary" id="btn-settings-back" style="padding: 4px 12px;">← Back</button>
             </div>
 
-            <label>Active Repositories:</label>
-            <ul id="repo-list" class="repo-list"></ul>
-
-            <div class="add-repo-box">
-                <label style="font-size: 0.8rem; color: var(--text-main);">Create Local Library</label>
-                <label style="font-size: 0.75rem;">For solo projects or testing — no Git required.</label>
-                <input type="text" id="new-local-name" placeholder="Folder Name (e.g. My_Parts)">
-                <button class="btn btn-secondary" id="btn-add-local" style="width: 100%; padding: 6px;">+ Create Local Library</button>
+            <!-- TAB NAVIGATION -->
+            <div class="tab-nav">
+                <button id="nav-tab-libs" class="tab-btn active">Libraries</button>
+                <button id="nav-tab-sys" class="tab-btn">System & History</button>
             </div>
 
-            <div class="add-repo-box">
-                <label style="font-size: 0.8rem; color: var(--text-main);">Connect Shared Team Library (Git)</label>
-                <label style="font-size: 0.75rem;">HTTPS URL only. Git Credential Manager handles authentication.</label>
-                <input type="text" id="new-git-url" placeholder="https://github.com/your-team/parts-library.git">
-                <input type="text" id="new-git-name" placeholder="Local Folder Name (e.g. Team_Parts)">
-                <button class="btn btn-primary" id="btn-add-git" style="width: 100%; padding: 6px;">Validate & Clone</button>
+            <!-- TAB 1: LIBRARIES -->
+            <div id="content-libs" class="tab-content active">
+                <label>Folder to Watch for Downloads:</label>
+                <div class="file-input-group">
+                    <input type="text" id="watch-dir-input" readonly>
+                    <button class="btn btn-secondary" id="btn-browse-watch">Change</button>
+                </div>
+
+                <div class="header-row" style="margin-top: 8px; margin-bottom: 4px; align-items: center;">
+                    <label style="margin: 0;">Active Repositories:</label>
+                    <button id="btn-show-add-repo" class="btn-icon" style="font-size: 0.8rem; padding: 2px 8px;">+ Add Repo</button>
+                </div>
+                <ul id="repo-list" class="repo-list"></ul>
+
+                <!-- COLLAPSIBLE ADD REPO BOX -->
+                <div id="add-repo-container" class="hidden" style="background: rgba(0,0,0,0.15); padding: 12px; border-radius: 6px; margin-top: 8px; border: 1px solid var(--border);">
+                    <div class="toggle-nav">
+                        <button id="tab-local" class="toggle-btn active">Local Folder</button>
+                        <button id="tab-git" class="toggle-btn">Git Repository</button>
+                    </div>
+
+                    <!-- Local Form -->
+                    <div id="form-local">
+                        <input type="text" id="new-local-name" placeholder="Folder Name (e.g. My_Parts)" style="width: 100%; margin-bottom: 8px; box-sizing: border-box; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-color); color: white;">
+                        <button class="btn btn-secondary" id="btn-add-local" style="width: 100%; padding: 6px;">Create Local Library</button>
+                    </div>
+
+                    <!-- Git Form -->
+                    <div id="form-git" class="hidden">
+                        <input type="text" id="new-git-url" placeholder="https://github.com/team/parts.git" style="width: 100%; margin-bottom: 8px; box-sizing: border-box; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-color); color: white;">
+                        <input type="text" id="new-git-name" placeholder="Local Folder Name (e.g. Team_Parts)" style="width: 100%; margin-bottom: 8px; box-sizing: border-box; padding: 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--bg-color); color: white;">
+                        <button class="btn btn-primary" id="btn-add-git" style="width: 100%; padding: 6px;">Validate & Clone</button>
+                    </div>
+                </div>
             </div>
 
-            <div class="form-group" style="margin-bottom: 12px; display: flex; flex-direction: row; align-items: center; gap: 8px;">
-                <input type="checkbox" id="autostart-toggle" style="width: auto; cursor: pointer;">
-                <label for="autostart-toggle" style="color: var(--text-main); cursor: pointer; font-size: 0.95rem;">Run automatically on system startup</label>
-            </div>
+            <!-- TAB 2: SYSTEM & HISTORY -->
+            <div id="content-sys" class="tab-content">
+                <div class="form-group" style="flex: 0 0 auto; margin-bottom: 16px; display: flex; flex-direction: row; align-items: center; gap: 8px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
+                    <input type="checkbox" id="autostart-toggle" style="width: auto; cursor: pointer;">
+                    <label for="autostart-toggle" style="color: var(--text-main); cursor: pointer; font-size: 0.95rem; margin: 0;">Run automatically on system startup</label>
+                </div>
 
-            <label>Recent History (Rollback):</label>
-            <ul id="history-list" class="history-list">
-                <!-- Dynamically populated -->
-            </ul>
-
-            <div class="actions" style="justify-content: flex-start; margin-top: auto; padding-bottom: 4px;">
-                <button class="btn btn-secondary" id="btn-settings-back">← Back</button>
+                <label>Recent History (Rollback):</label>
+                <ul id="history-list" class="history-list">
+                    <!-- Dynamically populated -->
+                </ul>
             </div>
         </div>
 

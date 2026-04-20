@@ -34,22 +34,35 @@ const btnOk = document.getElementById('btn-ok');
 const watchDirInput = document.getElementById('watch-dir-input');
 const btnBrowseWatch = document.getElementById('btn-browse-watch');
 const repoList = document.getElementById('repo-list');
-const newLocalName = document.getElementById('new-local-name');
-const btnAddLocal = document.getElementById('btn-add-local');
-const newGitUrl = document.getElementById('new-git-url');
-const newGitName = document.getElementById('new-git-name');
-const btnAddGit = document.getElementById('btn-add-git');
 const syncStatusIcon = document.getElementById('sync-status-icon');
 const btnSyncNow = document.getElementById('btn-sync-now');
 const autostartToggle = document.getElementById('autostart-toggle');
 const historyList = document.getElementById('history-list');
 const btnSettingsBack = document.getElementById('btn-settings-back');
 
-// NEW: Queue system to handle rapid downloads or multi-file drops
+// UI Toggle Elements (New)
+const navTabLibs = document.getElementById('nav-tab-libs');
+const navTabSys = document.getElementById('nav-tab-sys');
+const contentLibs = document.getElementById('content-libs');
+const contentSys = document.getElementById('content-sys');
+const btnShowAddRepo = document.getElementById('btn-show-add-repo');
+const addRepoContainer = document.getElementById('add-repo-container');
+const tabLocal = document.getElementById('tab-local');
+const tabGit = document.getElementById('tab-git');
+const formLocal = document.getElementById('form-local');
+const formGit = document.getElementById('form-git');
+
+// Form Inputs (Existing logic hooks here)
+const newLocalName = document.getElementById('new-local-name');
+const btnAddLocal = document.getElementById('btn-add-local');
+const newGitUrl = document.getElementById('new-git-url');
+const newGitName = document.getElementById('new-git-name');
+const btnAddGit = document.getElementById('btn-add-git');
+
+// Queue system to handle rapid downloads or multi-file drops
 let fileQueue = [];
 let currentConfig = null;
 
-// Safe Wails initialization to prevent blank screens
 document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
         loadConfig().catch(err => {
@@ -182,7 +195,6 @@ function resetStandbyUI() {
     btnOk.style.cursor = "not-allowed";
 }
 
-// Queue Processing Engine
 async function processNextInQueue() {
     if (fileQueue.length === 0) {
         resetStandbyUI();
@@ -196,7 +208,6 @@ async function processNextInQueue() {
     mainTitle.innerText = "New KiCad Part Detected";
     filenameDisplay.innerHTML = `<strong>${baseName}</strong><br><small style="color: var(--text-muted);">Analyzing contents...</small>`;
     
-    // Show queue badge if multiple files exist
     if (fileQueue.length > 1) {
         filenameDisplay.innerHTML += `<br><span style="color: var(--accent); font-weight: bold; font-size: 0.85rem; display: inline-block; margin-top: 4px;">Queue: ${fileQueue.length - 1} more file(s) waiting...</span>`;
     }
@@ -211,7 +222,6 @@ async function processNextInQueue() {
     btnOk.style.opacity = "1";
     btnOk.style.cursor = "pointer";
 
-    // Auto Category Guessing
     try {
         const guessedCategory = await GuessCategory(currentFilename);
         if (guessedCategory) {
@@ -222,7 +232,6 @@ async function processNextInQueue() {
         }
     } catch (err) {}
 
-    // File Summary
     try {
         const summary = await GetItemSummary(currentFilename);
         filenameDisplay.innerHTML = `<strong>${baseName}</strong><br><small style="color: var(--accent); opacity: 0.9;">${summary}</small>`;
@@ -234,15 +243,48 @@ async function processNextInQueue() {
     }
 }
 
-// Wails V3 EVENT LISTENERS
+// UI Toggles (Tabs & Expanders)
+navTabLibs.addEventListener('click', () => {
+    navTabLibs.classList.add('active');
+    navTabSys.classList.remove('active');
+    contentLibs.classList.add('active');
+    contentSys.classList.remove('active');
+});
+
+navTabSys.addEventListener('click', () => {
+    navTabSys.classList.add('active');
+    navTabLibs.classList.remove('active');
+    contentSys.classList.add('active');
+    contentLibs.classList.remove('active');
+});
+
+btnShowAddRepo.addEventListener('click', () => {
+    addRepoContainer.classList.toggle('hidden');
+    const isHidden = addRepoContainer.classList.contains('hidden');
+    btnShowAddRepo.innerText = isHidden ? "+ Add Repo" : "Collapse";
+});
+
+tabLocal.addEventListener('click', () => {
+    tabLocal.classList.add('active');
+    tabGit.classList.remove('active');
+    formLocal.classList.remove('hidden');
+    formGit.classList.add('hidden');
+});
+
+tabGit.addEventListener('click', () => {
+    tabGit.classList.add('active');
+    tabLocal.classList.remove('active');
+    formGit.classList.remove('hidden');
+    formLocal.classList.add('hidden');
+});
+
+// Logic Event Listeners
 Events.On("file-detected", async (e) => {
     const filename = Array.isArray(e.data) ? e.data[0] : e.data;
     fileQueue.push(filename);
     if (fileQueue.length === 1) {
-        // First item — start processing immediately
         await processNextInQueue();
     }
-    // Additional items are already shown via the queue badge inside processNextInQueue
 });
 
 Events.On("watcher-error", (e) => {
@@ -282,16 +324,12 @@ Events.On("file-rejected", (e) => {
     }, 2500);
 });
 
-// REMOVED manual DOM event listeners:
-// Wails v3 intercepts OS file drags natively when EnableFileDrop is true.
-// The file path goes directly to Go, which triggers HandleDroppedItem and emits "file-detected"
-
 autostartToggle.addEventListener('change', async (e) => {
     try {
         await ToggleAutoStart(e.target.checked);
     } catch (err) {
         console.error('AutoStart toggle failed:', err);
-        e.target.checked = !e.target.checked; // revert on error
+        e.target.checked = !e.target.checked; 
     }
 });
 
@@ -353,10 +391,10 @@ btnOk.addEventListener('click', async () => {
     
     try {
         await ProcessFile(currentFilename, chosenCategory, chosenRepo);
-        fileQueue.shift(); // Remove the finished file — do this before loadConfig so a failure there doesn't re-show a processed file
+        fileQueue.shift(); 
         await loadConfig();
-        selectCategory.value = chosenCategory; // Remembers your choice for the next item in queue
-        await processNextInQueue(); // Load the next one
+        selectCategory.value = chosenCategory; 
+        await processNextInQueue(); 
     } catch (err) {
         alert("Processing Error: " + err);
         btnOk.disabled = false;
@@ -366,13 +404,13 @@ btnOk.addEventListener('click', async () => {
 document.getElementById('btn-skip').addEventListener('click', async () => {
     if (fileQueue.length > 0) {
         await SkipFile(fileQueue[0]);
-        fileQueue.shift(); // Pop the skipped file
-        await processNextInQueue(); // Show next
+        fileQueue.shift(); 
+        await processNextInQueue(); 
     }
 });
 
 document.getElementById('btn-cancel').addEventListener('click', async () => {
-    fileQueue = []; // Clear the entire queue on cancel
+    fileQueue = []; 
     await HideWindow();
     resetStandbyUI(); 
 });
@@ -399,11 +437,13 @@ btnAddLocal.addEventListener('click', async () => {
         await AddRepository(name, '');
         await loadConfig();
         newLocalName.value = '';
+        addRepoContainer.classList.add('hidden');
+        btnShowAddRepo.innerText = "+ Add Repo";
     } catch (err) {
         alert('Failed to create library:\n' + err);
     } finally {
         btnAddLocal.disabled = false;
-        btnAddLocal.innerText = '+ Create Local Library';
+        btnAddLocal.innerText = 'Create Local Library';
     }
 });
 
@@ -427,12 +467,13 @@ btnAddGit.addEventListener('click', async () => {
     syncStatusIcon.title = 'Validating repository URL...';
 
     try {
-        // AddRepository runs git ls-remote validation before cloning
         btnAddGit.innerText = 'Cloning repository...';
         await AddRepository(name, url);
         await loadConfig();
         newGitUrl.value = '';
         newGitName.value = '';
+        addRepoContainer.classList.add('hidden');
+        btnShowAddRepo.innerText = "+ Add Repo";
     } catch (err) {
         alert('Failed to connect library:\n' + err);
     } finally {

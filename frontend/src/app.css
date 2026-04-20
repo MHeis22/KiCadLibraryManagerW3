@@ -160,3 +160,27 @@ body.file-drop-target-active #drag-overlay {
 .shake-animation {
     animation: shake 0.4s ease-in-out;
 }
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent; /* Keeps the track invisible */
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: #4a4a5a; /* Use a color similar to your --border or --text-muted */
+    border-radius: 10px;
+    border: 2px solid var(--bg-color); /* Creates a little padding illusion */
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: #6a6a7a; /* Slightly lighter on hover */
+}
+
+/* Specific fix for your lists so they don't look cut off */
+.repo-list, .history-list {
+    padding-right: 4px; 
+}
