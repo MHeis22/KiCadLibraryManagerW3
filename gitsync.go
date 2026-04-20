@@ -2,19 +2,8 @@ package main
 
 import (
 	"fmt"
-	"os/exec"
 	"strings"
-	"syscall"
 )
-
-// gitCommand is a helper that wraps exec.Command to ensure the Windows command
-// prompt does not flash visibly every time a background Git operation runs.
-func gitCommand(args ...string) *exec.Cmd {
-	cmd := exec.Command("git", args...)
-	// HideWindow prevents the console flash on Windows.
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	return cmd
-}
 
 // isGitRepository returns true if the path is inside a git repository.
 func isGitRepository(path string) bool {
