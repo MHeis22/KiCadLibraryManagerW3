@@ -82,6 +82,17 @@ const addCategoryContainer = document.getElementById('add-category-container');
 const newCategoryName      = document.getElementById('new-category-name');
 const categoryAddError     = document.getElementById('category-add-error');
 const btnAddCategory       = document.getElementById('btn-add-category');
+const toast                = document.getElementById('toast');
+
+let _toastTimer = null;
+function showToast(message, type = 'error') {
+    const colors = { error: '#ff5555', success: '#50fa7b', info: '#bd93f9' };
+    toast.style.borderLeftColor = colors[type] ?? colors.error;
+    toast.innerText = formatWailsError(message);
+    toast.style.display = 'block';
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
 
 // Queue system to handle rapid downloads or multi-file drops
 let fileQueue = [];
@@ -185,7 +196,7 @@ function populateRepositories(repositories) {
                 await SetDefaultRepository(repo.name);
                 await loadConfig();
             } catch (err) {
-                alert('Failed to set default: ' + err);
+                showToast('Failed to set default: ' + err);
             }
         });
 
@@ -199,7 +210,7 @@ function populateRepositories(repositories) {
                 await RemoveRepository(repo.name);
                 await loadConfig();
             } catch (err) {
-                alert('Cannot remove: ' + err);
+                showToast('Cannot remove: ' + err);
             }
         });
 
@@ -292,7 +303,7 @@ function populateCategorySettings(categories) {
                 await DeleteCategory(cat);
                 await loadConfig();
             } catch (err) {
-                alert('Delete failed: ' + err);
+                showToast('Delete failed: ' + err);
             }
         });
 
@@ -334,7 +345,7 @@ function populateHistory(historyItems) {
                     if (success) {
                         await loadConfig();
                     } else {
-                        alert("Undo failed. The files may have been moved or deleted manually.");
+                        showToast("Undo failed — files may have been moved or deleted manually.");
                     }
                 }
             };
@@ -544,7 +555,7 @@ btnSaveSetup.addEventListener('click', async () => {
             await loadConfig();
             if (fileQueue.length === 0) await HideWindow();
         } catch (err) {
-            alert("Failed to save setup: " + err);
+            showToast("Failed to save setup: " + err);
         }
     }
 });
@@ -582,7 +593,7 @@ async function processItemWithStrategy(strategy, newName) {
         selectCategory.value = chosenCategory; 
         await processNextInQueue(); 
     } catch (err) {
-        alert("Processing Error: " + err);
+        showToast("Processing error: " + err);
     } finally {
         btnConflictProceed.disabled = false;
         btnOk.disabled = false;
@@ -622,7 +633,7 @@ btnOk.addEventListener('click', async () => {
         // Fast path: No conflicts
         await processItemWithStrategy("overwrite", "");
     } catch (err) {
-        alert("Error verifying component: " + err);
+        showToast("Error verifying component: " + err);
         btnOk.disabled = false;
     }
 });
@@ -698,7 +709,7 @@ btnAddLocal.addEventListener('click', async () => {
         addRepoContainer.classList.add('hidden');
         btnShowAddRepo.innerText = "+ Add Repo";
     } catch (err) {
-        alert('Failed to create library:\n' + err);
+        showToast('Failed to create library: ' + err);
     } finally {
         btnAddLocal.disabled = false;
         btnAddLocal.innerText = 'Create Local Library';
@@ -733,7 +744,7 @@ btnAddGit.addEventListener('click', async () => {
         addRepoContainer.classList.add('hidden');
         btnShowAddRepo.innerText = "+ Add Repo";
     } catch (err) {
-        alert('Failed to connect library:\n' + err);
+        showToast('Failed to connect library: ' + err);
     } finally {
         btnAddGit.disabled = false;
         btnAddGit.innerText = 'Validate & Clone';

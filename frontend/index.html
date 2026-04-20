@@ -53,6 +53,9 @@
         
         .toggle-nav { display: flex; gap: 8px; margin-bottom: 12px; }
         .toggle-btn { flex: 1; background: var(--bg-color); border: 1px solid var(--border); color: var(--text-muted); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 0.85rem;}
+
+        /* Toast notification */
+        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #2a2a35; border: 1px solid var(--border); border-left: 3px solid #ff5555; color: var(--text-main); padding: 10px 16px; border-radius: 6px; font-size: 0.85rem; z-index: 9999; max-width: 300px; box-shadow: 0 4px 14px rgba(0,0,0,0.5); pointer-events: none; display: none; text-align: center; }
         .toggle-btn.active { background: var(--btn-secondary); color: var(--text-main); border-color: var(--border); }
     </style>
 </head>
@@ -262,6 +265,18 @@
                     </div>
 
                     <div>
+                        <h3 style="margin: 0 0 8px 0; font-size: 0.9rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em;">Managing Categories</h3>
+                        <ul style="margin: 0; padding-left: 18px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.8;">
+                            <li>Categories define the sub-folder structure inside each repository (e.g. <code style="background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 3px;">symbols/Passives.kicad_sym</code>).</li>
+                            <li>The app automatically suggests the best category when a component is detected, based on its description and keywords.</li>
+                            <li>Go to <strong style="color: var(--text-main);">Settings → Categories</strong> to add, rename, or delete categories.</li>
+                            <li>Click <strong style="color: var(--text-main);">✏️</strong> to rename inline — press <kbd style="background:rgba(0,0,0,0.3); padding:1px 5px; border-radius:3px;">Enter</kbd> to save or <kbd style="background:rgba(0,0,0,0.3); padding:1px 5px; border-radius:3px;">Esc</kbd> to cancel.</li>
+                            <li>Click 🗑️ to delete a category. <em>Physical library files are not renamed or deleted.</em></li>
+                            <li>The last remaining category cannot be deleted.</li>
+                        </ul>
+                    </div>
+
+                    <div>
                         <h3 style="margin: 0 0 8px 0; font-size: 0.9rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em;">Git Sync</h3>
                         <ul style="margin: 0; padding-left: 18px; color: var(--text-muted); font-size: 0.88rem; line-height: 1.8;">
                             <li>The <strong style="color: var(--text-main);">↻</strong> button in the main view syncs all Git-backed libraries immediately.</li>
@@ -292,6 +307,7 @@
         </div>
 
     </div>
+    <div id="toast"></div>
     <script type="module" src="./src/main.js"></script>
 </body>
 </html>
