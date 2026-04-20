@@ -133,18 +133,13 @@ func (a *App) StartWatcher() {
 
 // Helper function to safely wait for a file to finish downloading/copying
 func waitForFileReady(path string) bool {
-	maxRetries := 30 // Wait up to 15 seconds (30 * 500ms)
+	maxRetries := 120 // Increased: Wait up to 60 seconds (120 * 500ms) for AV/SmartScreen
 	var lastSize int64 = -1
 
 	for i := 0; i < maxRetries; i++ {
 		info, err := os.Stat(path) // Use Stat instead of OpenFile to avoid locking
 
-		if err != nil {
-			// If the browser deleted or renamed the temp file, stop watching it instantly
-			if os.IsNotExist(err) {
-				return false
-			}
-		} else {
+		if err == nil {
 			currentSize := info.Size()
 			// 1. Ignore 0-byte browser placeholders entirely
 			if currentSize > 0 {
@@ -164,7 +159,6 @@ func waitForFileReady(path string) bool {
 	}
 	return false
 }
-
 func (a *App) watchFolder(ctx context.Context) {
 	conf := LoadConfig()
 	watchPath := conf.WatchDir
@@ -211,12 +205,19 @@ func (a *App) watchFolder(ctx context.Context) {
 					}
 
 					go func(path string) {
-						// Ensure we remove the file from the processing map when done.
-						// We add a small 2-second buffer to swallow any lingering browser events.
+						// Flag to track if we successfully processed the file
+						success := false
+
 						defer func() {
-							time.AfterFunc(2*time.Second, func() {
+							if success {
+								// Add a small 2-second buffer to swallow lingering browser events
+								time.AfterFunc(2*time.Second, func() {
+									a.processing.Delete(path)
+								})
+							} else {
+								// If it failed/timed out, clear IMMEDIATELY so we don't accidentally ignore the real file
 								a.processing.Delete(path)
-							})
+							}
 						}()
 
 						if !waitForFileReady(path) {
@@ -228,6 +229,9 @@ func (a *App) watchFolder(ctx context.Context) {
 							fmt.Println("--> Ignored non-KiCad zip:", filepath.Base(path))
 							return
 						}
+
+						// If we reached here, the file is ready and valid
+						success = true
 
 						filename := filepath.Base(path)
 						fmt.Println("Real file verified:", filename)
