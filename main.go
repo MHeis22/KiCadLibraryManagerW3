@@ -69,6 +69,10 @@ func main() {
 	})
 
 	systray.SetMenu(menu)
+	systray.OnClick(func() {
+		macActivate()
+		window.Show()
+	})
 
 	err := app.Run()
 	if err != nil {
