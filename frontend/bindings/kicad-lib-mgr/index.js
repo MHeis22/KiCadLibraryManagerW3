@@ -9,6 +9,8 @@ export {
 
 export {
     Config,
+    DuplicateInfo,
     HistoryItem,
+    LibraryPart,
     Repository
 } from "./models.js";

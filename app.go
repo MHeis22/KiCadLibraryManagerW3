@@ -18,7 +18,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-const AppVersion = "1.14"
+const AppVersion = "1.15"
 
 type App struct {
 	app           *application.App // Updated to *application.App for Wails v3
@@ -870,6 +870,112 @@ func (a *App) HideWindow() {
 		a.mainWindow.Hide()
 	}
 	macDeactivate()
+}
+
+// BrowseLibrary scans all repo symbol directories and returns a flat list of imported parts.
+func (a *App) BrowseLibrary() []LibraryPart {
+	conf := LoadConfig()
+	if conf.BaseLibPath == "" {
+		return nil
+	}
+
+	// Only match top-level symbols (2-space indent = depth-1 inside kicad_symbol_lib)
+	topLevelRe := regexp.MustCompile(`(?m)^  \(symbol "([^"]+)"`)
+
+	var parts []LibraryPart
+	for _, repo := range conf.Repositories {
+		symDir := filepath.Join(conf.BaseLibPath, repo.Name, "symbols")
+		entries, err := os.ReadDir(symDir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".kicad_sym") {
+				continue
+			}
+			category := strings.TrimSuffix(entry.Name(), ".kicad_sym")
+			content, err := os.ReadFile(filepath.Join(symDir, entry.Name()))
+			if err != nil {
+				continue
+			}
+			for _, match := range topLevelRe.FindAllSubmatch(content, -1) {
+				if len(match) > 1 {
+					parts = append(parts, LibraryPart{
+						Name:     string(match[1]),
+						Category: category,
+						Repo:     repo.Name,
+					})
+				}
+			}
+		}
+	}
+
+	// Sort alphabetically by name for consistent display
+	for i := 1; i < len(parts); i++ {
+		for j := i; j > 0 && strings.ToLower(parts[j].Name) < strings.ToLower(parts[j-1].Name); j-- {
+			parts[j], parts[j-1] = parts[j-1], parts[j]
+		}
+	}
+	return parts
+}
+
+// FindDuplicates checks if the incoming file's symbol already exists in any repo/category.
+func (a *App) FindDuplicates(filename string) ([]DuplicateInfo, error) {
+	conf := LoadConfig()
+	if conf.BaseLibPath == "" {
+		return nil, nil
+	}
+
+	fullPath := filename
+	if !filepath.IsAbs(fullPath) {
+		fullPath = filepath.Join(conf.WatchDir, filename)
+	}
+
+	assets, tempDir, err := extractAssets(fullPath)
+	if err != nil || assets == nil || assets.SymbolPath == "" {
+		return nil, nil
+	}
+	if tempDir != "" {
+		defer os.RemoveAll(tempDir)
+	}
+
+	srcBytes, err := os.ReadFile(assets.SymbolPath)
+	if err != nil {
+		return nil, nil
+	}
+	nameRe := regexp.MustCompile(`\(\s*symbol\s+"([^"]+)"`)
+	match := nameRe.FindSubmatch(srcBytes)
+	if len(match) < 2 {
+		return nil, nil
+	}
+	targetName := string(match[1])
+	needle := fmt.Sprintf(`(symbol "%s"`, targetName)
+
+	var results []DuplicateInfo
+	for _, repo := range conf.Repositories {
+		symDir := filepath.Join(conf.BaseLibPath, repo.Name, "symbols")
+		entries, err := os.ReadDir(symDir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".kicad_sym") {
+				continue
+			}
+			content, err := os.ReadFile(filepath.Join(symDir, entry.Name()))
+			if err != nil {
+				continue
+			}
+			if strings.Contains(string(content), needle) {
+				results = append(results, DuplicateInfo{
+					Name:     targetName,
+					Category: strings.TrimSuffix(entry.Name(), ".kicad_sym"),
+					Repo:     repo.Name,
+				})
+			}
+		}
+	}
+	return results, nil
 }
 
 func (a *App) GetItemSummary(filename string) string {

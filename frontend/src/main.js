@@ -18,7 +18,9 @@ import {
     ToggleAutoStart,
     AddCategory,
     RenameCategory,
-    DeleteCategory
+    DeleteCategory,
+    BrowseLibrary,
+    FindDuplicates
 } from '../bindings/kicad-lib-mgr/app.js';
 
 const setupView = document.getElementById('setup-view');
@@ -59,12 +61,17 @@ const btnConflictProceed = document.getElementById('btn-conflict-proceed');
 // UI Toggle Elements (New)
 const navTabLibs = document.getElementById('nav-tab-libs');
 const navTabCats = document.getElementById('nav-tab-cats');
+const navTabBrowse = document.getElementById('nav-tab-browse');
 const navTabSys = document.getElementById('nav-tab-sys');
 const navTabHelp = document.getElementById('nav-tab-help');
 const contentLibs = document.getElementById('content-libs');
 const contentCats = document.getElementById('content-cats');
+const contentBrowse = document.getElementById('content-browse');
 const contentSys = document.getElementById('content-sys');
 const contentHelp = document.getElementById('content-help');
+const browseList = document.getElementById('browse-list');
+const browseSearch = document.getElementById('browse-search');
+const browseCount = document.getElementById('browse-count');
 const btnShowAddRepo = document.getElementById('btn-show-add-repo');
 const addRepoContainer = document.getElementById('add-repo-container');
 const tabLocal = document.getElementById('tab-local');
@@ -100,6 +107,7 @@ function showToast(message, type = 'error') {
 // Queue system to handle rapid downloads or multi-file drops
 let fileQueue = [];
 let currentConfig = null;
+let browsePartsCache = null; // invalidated on loadConfig()
 
 document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
@@ -111,6 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function loadConfig() {
+    browsePartsCache = null; // invalidate on every config reload
     try {
         currentConfig = await GetConfig();
         
@@ -442,12 +451,23 @@ async function processNextInQueue() {
     } catch (err) {
         filenameDisplay.innerHTML = `<strong>${baseName}</strong>`;
     }
+
+    // Duplicate detection — informational warning only, does not block import
+    try {
+        const dupes = await FindDuplicates(currentFilename);
+        if (dupes && dupes.length > 0) {
+            const shown = dupes.slice(0, 3);
+            const extra = dupes.length > 3 ? ` <em>…and ${dupes.length - 3} more</em>` : '';
+            const lines = shown.map(d => `${d.name} in <strong>${d.category}</strong> (${d.repo})`).join(', ');
+            filenameDisplay.innerHTML += `<br><span style="color: #ffb86c; font-size: 0.82rem;">⚠️ Already in library: ${lines}${extra}</span>`;
+        }
+    } catch (_) {}
 }
 
 // UI Toggles (Tabs & Expanders)
 function switchSettingsTab(activeBtn, activeContent) {
-    [navTabLibs, navTabCats, navTabSys, navTabHelp].forEach(b => b.classList.remove('active'));
-    [contentLibs, contentCats, contentSys, contentHelp].forEach(c => c.classList.remove('active'));
+    [navTabLibs, navTabCats, navTabBrowse, navTabSys, navTabHelp].forEach(b => b.classList.remove('active'));
+    [contentLibs, contentCats, contentBrowse, contentSys, contentHelp].forEach(c => c.classList.remove('active'));
     activeBtn.classList.add('active');
     activeContent.classList.add('active');
 }
@@ -477,6 +497,65 @@ navTabLibs.addEventListener('click', () => switchSettingsTab(navTabLibs, content
 navTabCats.addEventListener('click', () => switchSettingsTab(navTabCats, contentCats));
 navTabSys.addEventListener('click', () => switchSettingsTab(navTabSys, contentSys));
 navTabHelp.addEventListener('click', () => switchSettingsTab(navTabHelp, contentHelp));
+
+// --- Browse Tab ---
+
+function renderBrowseList(parts) {
+    browseList.innerHTML = '';
+    if (!parts || parts.length === 0) {
+        browseList.innerHTML = '<li class="history-item"><span style="color: var(--text-muted); font-size: 0.85rem;">No parts found. Import some components first.</span></li>';
+        browseCount.textContent = '';
+        return;
+    }
+    const query = browseSearch.value.trim().toLowerCase();
+    const filtered = query
+        ? parts.filter(p =>
+            p.name.toLowerCase().includes(query) ||
+            p.category.toLowerCase().includes(query) ||
+            p.repo.toLowerCase().includes(query))
+        : parts;
+
+    browseCount.textContent = query
+        ? `${filtered.length} / ${parts.length} parts`
+        : `${parts.length} parts`;
+
+    if (filtered.length === 0) {
+        browseList.innerHTML = '<li class="history-item"><span style="color: var(--text-muted); font-size: 0.85rem;">No matching parts.</span></li>';
+        return;
+    }
+
+    filtered.forEach(p => {
+        const li = document.createElement('li');
+        li.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:6px; padding: 5px 0;';
+        li.innerHTML = `
+            <span style="flex:1; font-size:0.9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                <strong>${p.name}</strong>
+            </span>
+            <span style="color:var(--text-muted); font-size:0.8rem; white-space:nowrap;">${p.category}</span>
+            <span style="color:var(--accent); font-size:0.75rem; white-space:nowrap; margin-left:4px;">${p.repo}</span>`;
+        browseList.appendChild(li);
+    });
+}
+
+navTabBrowse.addEventListener('click', async () => {
+    switchSettingsTab(navTabBrowse, contentBrowse);
+    if (browsePartsCache) {
+        renderBrowseList(browsePartsCache);
+        return;
+    }
+    browseList.innerHTML = '<li class="history-item"><span style="color: var(--text-muted); font-size: 0.85rem;">Loading…</span></li>';
+    browseCount.textContent = '';
+    try {
+        browsePartsCache = await BrowseLibrary();
+        renderBrowseList(browsePartsCache);
+    } catch (err) {
+        browseList.innerHTML = `<li class="history-item"><span style="color:#ff5555; font-size:0.85rem;">Failed to load library: ${err}</span></li>`;
+    }
+});
+
+browseSearch.addEventListener('input', () => {
+    if (browsePartsCache) renderBrowseList(browsePartsCache);
+});
 
 btnShowAddRepo.addEventListener('click', () => {
     addRepoContainer.classList.toggle('hidden');

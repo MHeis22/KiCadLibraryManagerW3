@@ -151,6 +151,7 @@
             <div class="tab-nav">
                 <button id="nav-tab-libs" class="tab-btn active">Libraries</button>
                 <button id="nav-tab-cats" class="tab-btn">Categories</button>
+                <button id="nav-tab-browse" class="tab-btn">Browse</button>
                 <button id="nav-tab-sys" class="tab-btn">System & History</button>
                 <button id="nav-tab-help" class="tab-btn">Help</button>
             </div>
@@ -217,7 +218,20 @@
                 </div>
             </div>
 
-            <!-- TAB 3: SYSTEM & HISTORY -->
+            <!-- TAB 3: BROWSE -->
+            <div id="content-browse" class="tab-content">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <input type="text" id="browse-search" placeholder="Search parts by name, category, or repo…" style="flex: 1;">
+                    <span id="browse-count" style="color: var(--text-muted); font-size: 0.8rem; white-space: nowrap;"></span>
+                </div>
+                <ul id="browse-list" class="repo-list" style="flex-grow: 1;">
+                    <li class="history-item" id="browse-placeholder">
+                        <span style="color: var(--text-muted); font-size: 0.85rem;">Click this tab to load your library parts…</span>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- TAB 4: SYSTEM & HISTORY -->
             <div id="content-sys" class="tab-content">
                 <div class="form-group" style="flex: 0 0 auto; margin-bottom: 16px; display: flex; flex-direction: row; align-items: center; gap: 8px; background: rgba(0,0,0,0.15); padding: 12px; border-radius: 6px; border: 1px solid var(--border);">
                     <input type="checkbox" id="autostart-toggle" style="width: auto; cursor: pointer;">
@@ -304,7 +318,7 @@
                     <div>
                         <h3 style="margin: 0 0 8px 0; font-size: 0.9rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em;">Autostart</h3>
                         <p style="margin: 0; color: var(--text-muted); font-size: 0.88rem; line-height: 1.6;">
-                            Enable <strong style="color: var(--text-main);">Run automatically on system startup</strong> in System &amp; History to have the app start silently with Windows and monitor your watch folder in the background.
+                            Enable <strong style="color: var(--text-main);">Run automatically on system startup</strong> in System &amp; History to have the app start silently at login and monitor your watch folder in the background. On <strong style="color: var(--text-main);">macOS</strong>, this installs a LaunchAgent plist in <code style="background: rgba(0,0,0,0.3); padding: 1px 5px; border-radius: 3px;">~/Library/LaunchAgents/</code>. On <strong style="color: var(--text-main);">Windows</strong>, it adds a Registry Run key.
                         </p>
                     </div>
 

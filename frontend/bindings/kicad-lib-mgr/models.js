@@ -110,6 +110,51 @@ export class Config {
 }
 
 /**
+ * DuplicateInfo describes an existing library location that matches an incoming part
+ */
+export class DuplicateInfo {
+    /**
+     * Creates a new DuplicateInfo instance.
+     * @param {Partial<DuplicateInfo>} [$$source = {}] - The source object to create the DuplicateInfo.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("category" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["category"] = "";
+        }
+        if (!("repo" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["repo"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new DuplicateInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {DuplicateInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new DuplicateInfo(/** @type {Partial<DuplicateInfo>} */($$parsedSource));
+    }
+}
+
+/**
  * HistoryItem tracks an integration event for undo purposes
  */
 export class HistoryItem {
@@ -190,6 +235,51 @@ export class HistoryItem {
             $$parsedSource["addedFiles"] = $$createField5_0($$parsedSource["addedFiles"]);
         }
         return new HistoryItem(/** @type {Partial<HistoryItem>} */($$parsedSource));
+    }
+}
+
+/**
+ * LibraryPart is a single component entry returned by BrowseLibrary
+ */
+export class LibraryPart {
+    /**
+     * Creates a new LibraryPart instance.
+     * @param {Partial<LibraryPart>} [$$source = {}] - The source object to create the LibraryPart.
+     */
+    constructor($$source = {}) {
+        if (!("name" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["name"] = "";
+        }
+        if (!("category" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["category"] = "";
+        }
+        if (!("repo" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["repo"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new LibraryPart instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {LibraryPart}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new LibraryPart(/** @type {Partial<LibraryPart>} */($$parsedSource));
     }
 }
 

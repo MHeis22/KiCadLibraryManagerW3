@@ -28,6 +28,16 @@ export function AddRepository(name, url) {
 }
 
 /**
+ * BrowseLibrary scans all repo symbol directories and returns a flat list of imported parts.
+ * @returns {$CancellablePromise<$models.LibraryPart[]>}
+ */
+export function BrowseLibrary() {
+    return $Call.ByID(3817859458).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType1($result);
+    }));
+}
+
+/**
  * CheckConflicts scans the target library locations and checks if any files with matching names already exist.
  * @param {string} filename
  * @param {string} category
@@ -36,7 +46,7 @@ export function AddRepository(name, url) {
  */
 export function CheckConflicts(filename, category, repoName) {
     return $Call.ByID(2224678442, filename, category, repoName).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType0($result);
+        return $$createType2($result);
     }));
 }
 
@@ -49,11 +59,22 @@ export function DeleteCategory(name) {
 }
 
 /**
+ * FindDuplicates checks if the incoming file's symbol already exists in any repo/category.
+ * @param {string} filename
+ * @returns {$CancellablePromise<$models.DuplicateInfo[]>}
+ */
+export function FindDuplicates(filename) {
+    return $Call.ByID(2158640096, filename).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<$models.Config>}
  */
 export function GetConfig() {
     return $Call.ByID(1200034045).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType1($result);
+        return $$createType5($result);
     }));
 }
 
@@ -173,7 +194,7 @@ export function SyncAllRepositories() {
 }
 
 /**
- * ToggleAutoStart must be defined here for macOS so Wails can generate the binding.
+ * ToggleAutoStart creates or removes a LaunchAgent plist in ~/Library/LaunchAgents/.
  * @param {boolean} enable
  * @returns {$CancellablePromise<void>}
  */
@@ -191,5 +212,9 @@ export function UndoAction(id) {
 }
 
 // Private type creation functions
-const $$createType0 = $Create.Array($Create.Any);
-const $$createType1 = $models.Config.createFrom;
+const $$createType0 = $models.LibraryPart.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = $Create.Array($Create.Any);
+const $$createType3 = $models.DuplicateInfo.createFrom;
+const $$createType4 = $Create.Array($$createType3);
+const $$createType5 = $models.Config.createFrom;

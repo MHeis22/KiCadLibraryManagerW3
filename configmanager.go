@@ -14,6 +14,20 @@ type Repository struct {
 	URL  string `json:"url"`
 }
 
+// LibraryPart is a single component entry returned by BrowseLibrary
+type LibraryPart struct {
+	Name     string `json:"name"`
+	Category string `json:"category"`
+	Repo     string `json:"repo"`
+}
+
+// DuplicateInfo describes an existing library location that matches an incoming part
+type DuplicateInfo struct {
+	Name     string `json:"name"`
+	Category string `json:"category"`
+	Repo     string `json:"repo"`
+}
+
 // HistoryItem tracks an integration event for undo purposes
 type HistoryItem struct {
 	ID           string   `json:"id"`
