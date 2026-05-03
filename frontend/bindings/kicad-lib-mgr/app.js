@@ -173,9 +173,7 @@ export function SyncAllRepositories() {
 }
 
 /**
- * ToggleAutoStart adds or removes the app from the Windows Registry Run key.
- * Using the Registry is locale-independent; the "Start Menu" folder path is
- * localised on non-English Windows and must not be hardcoded.
+ * ToggleAutoStart must be defined here for macOS so Wails can generate the binding.
  * @param {boolean} enable
  * @returns {$CancellablePromise<void>}
  */

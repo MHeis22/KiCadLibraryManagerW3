@@ -38,6 +38,8 @@ const newCategoryInput = document.getElementById('new-category-input');
 const btnSettings = document.getElementById('btn-settings');
 const btnOk = document.getElementById('btn-ok');
 
+const baseLibPathInput = document.getElementById('base-lib-path-input');
+const btnChangeBaseLib = document.getElementById('btn-change-base-lib');
 const watchDirInput = document.getElementById('watch-dir-input');
 const btnBrowseWatch = document.getElementById('btn-browse-watch');
 const repoList = document.getElementById('repo-list');
@@ -118,6 +120,7 @@ async function loadConfig() {
             if (settingsView.classList.contains('hidden') && conflictView.classList.contains('hidden') && fileQueue.length === 0) {
                 switchView(mainView);
             }
+            baseLibPathInput.value = currentConfig.baseLibPath || "";
             watchDirInput.value = currentConfig.watchDir || "";
             autostartToggle.checked = currentConfig.autoStart || false;
             populateCategories(currentConfig.categories || []);
@@ -567,10 +570,24 @@ btnSaveSetup.addEventListener('click', async () => {
     if (path) {
         try {
             await SaveSetup(path);
+            switchView(settingsView); // switch before loadConfig so its view-guard skips mainView
             await loadConfig();
-            if (fileQueue.length === 0) await HideWindow();
         } catch (err) {
             showToast("Failed to save setup: " + err);
+        }
+    }
+});
+
+btnChangeBaseLib.addEventListener('click', async () => {
+    const selectedDir = await SelectDirectory();
+    if (selectedDir) {
+        try {
+            await SaveSetup(selectedDir);
+            baseLibPathInput.value = selectedDir;
+            await loadConfig();
+            showToast("Library root updated.", 'success');
+        } catch (err) {
+            showToast("Failed to update library root: " + err);
         }
     }
 });

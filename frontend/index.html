@@ -157,7 +157,13 @@
 
             <!-- TAB 1: LIBRARIES -->
             <div id="content-libs" class="tab-content active">
-                <label>Folder to Watch for Downloads:</label>
+                <label>Library Root Folder:</label>
+                <div class="file-input-group">
+                    <input type="text" id="base-lib-path-input" readonly>
+                    <button class="btn btn-secondary" id="btn-change-base-lib">Change</button>
+                </div>
+
+                <label style="margin-top: 8px;">Folder to Watch for Downloads:</label>
                 <div class="file-input-group">
                     <input type="text" id="watch-dir-input" readonly>
                     <button class="btn btn-secondary" id="btn-browse-watch">Change</button>
