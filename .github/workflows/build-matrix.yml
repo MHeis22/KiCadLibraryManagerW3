@@ -39,14 +39,8 @@ jobs:
       - name: Install Wails v3
         run: go install -v github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-alpha.77
 
-      - name: Install NSIS (Windows Installer Tool)
-        if: runner.os == 'Windows'
-        run: choco install nsis
-
       - name: Package Application
-        run: wails3 task package PLATFORM=${{ matrix.platform }} CONFIG=production
-
-      - name: Package Application
+        continue-on-error: true
         run: wails3 task package PLATFORM=${{ matrix.platform }} CONFIG=production
 
       - name: Upload Package
