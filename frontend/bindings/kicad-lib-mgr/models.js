@@ -335,9 +335,6 @@ export class Repository {
     }
 }
 
-/**
- * UpdateInfo is returned by CheckForUpdates.
- */
 export class UpdateInfo {
     /**
      * Creates a new UpdateInfo instance.

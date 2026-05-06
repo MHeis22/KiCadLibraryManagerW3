@@ -22,22 +22,21 @@ import (
 const AppVersion = "1.15"
 
 type App struct {
-	app           *application.App // Updated to *application.App for Wails v3
+	app           *application.App
 	mainWindow    *application.WebviewWindow
 	watcherCtx    context.Context
 	watcherCancel context.CancelFunc
-	mu            sync.Mutex // protects all LoadConfig/SaveConfig pairs
+	mu            sync.Mutex
 	processing    sync.Map
 }
 
-func NewApp(app *application.App, window *application.WebviewWindow) *App { // Updated here as well
+func NewApp(app *application.App, window *application.WebviewWindow) *App {
 	return &App{
 		app:        app,
 		mainWindow: window,
 	}
 }
 
-// ServiceStartup is the v3 hook for running initialization logic once the app starts
 func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
 	conf := LoadConfig()
 	if conf.BaseLibPath == "" {
@@ -47,16 +46,14 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 		}
 	}
 
-	InitializeKiCadLibraries(conf) // Ensure the base library structure exists before starting the watcher
+	InitializeKiCadLibraries(conf)
 	a.StartWatcher()
 	a.startSyncPoller()
 	return nil
 }
 
-// startSyncPoller runs a background goroutine that checks remote sync status every 15 minutes.
 func (a *App) startSyncPoller() {
 	go func() {
-		// Emit an initial status shortly after startup so the icon has a value
 		time.Sleep(5 * time.Second)
 		a.pollSyncStatus()
 
@@ -64,11 +61,11 @@ func (a *App) startSyncPoller() {
 		defer ticker.Stop()
 		for range ticker.C {
 			a.pollSyncStatus()
+			a.SyncAllRepositories() // Keep manual edits backed up in the background
 		}
 	}()
 }
 
-// pollSyncStatus fetches from all git remotes and emits a per-repo sync-status JSON map.
 func (a *App) pollSyncStatus() {
 	conf := LoadConfig()
 	if conf.BaseLibPath == "" {
@@ -93,7 +90,6 @@ func (a *App) pollSyncStatus() {
 	a.app.Event.Emit("sync-status", string(data))
 }
 
-// SyncAllRepositories runs git pull --rebase on every git-backed repository.
 func (a *App) SyncAllRepositories() error {
 	a.app.Event.Emit("sync-status", "syncing")
 
@@ -113,6 +109,8 @@ func (a *App) SyncAllRepositories() error {
 			errs = append(errs, fmt.Sprintf("%s: %v", repo.Name, err))
 			statusMap[repo.Name] = "warning"
 		} else {
+			// Background push of any stashed/popped manual edits
+			GitCommitAndPush(repoPath, "Auto-commit manual KiCad edits")
 			statusMap[repo.Name] = "synced"
 		}
 	}
@@ -128,27 +126,23 @@ func (a *App) SyncAllRepositories() error {
 
 func (a *App) StartWatcher() {
 	if a.watcherCancel != nil {
-		a.watcherCancel() // Stop existing watcher if running
+		a.watcherCancel()
 	}
 	a.watcherCtx, a.watcherCancel = context.WithCancel(context.Background())
 	go a.watchFolder(a.watcherCtx)
 }
 
-// Helper function to safely wait for a file to finish downloading/copying
 func waitForFileReady(path string) bool {
-	maxRetries := 120 // Increased: Wait up to 60 seconds (120 * 500ms) for AV/SmartScreen
+	maxRetries := 120
 	var lastSize int64 = -1
 
 	for i := 0; i < maxRetries; i++ {
-		info, err := os.Stat(path) // Use Stat instead of OpenFile to avoid locking
+		info, err := os.Stat(path)
 
 		if err == nil {
 			currentSize := info.Size()
-			// 1. Ignore 0-byte browser placeholders entirely
 			if currentSize > 0 {
-				// 2. Ensure the file is completely finished growing
 				if currentSize == lastSize {
-					// 3. Do ONE final OpenFile check to ensure the browser has fully released its write-lock
 					file, lockErr := os.OpenFile(path, os.O_RDONLY, 0666)
 					if lockErr == nil {
 						file.Close()
@@ -162,6 +156,7 @@ func waitForFileReady(path string) bool {
 	}
 	return false
 }
+
 func (a *App) watchFolder(ctx context.Context) {
 	conf := LoadConfig()
 	watchPath := conf.WatchDir
@@ -202,24 +197,19 @@ func (a *App) watchFolder(ctx context.Context) {
 				ext := strings.ToLower(filepath.Ext(event.Name))
 				if ext == ".epw" || ext == ".zip" {
 
-					// --- Deduplication Check ---
-					// If the file is already being processed, ignore this duplicate event
 					if _, loaded := a.processing.LoadOrStore(event.Name, true); loaded {
 						continue
 					}
 
 					go func(path string) {
-						// Flag to track if we successfully processed the file
 						success := false
 
 						defer func() {
 							if success {
-								// Add a small 2-second buffer to swallow lingering browser events
 								time.AfterFunc(2*time.Second, func() {
 									a.processing.Delete(path)
 								})
 							} else {
-								// If it failed/timed out, clear IMMEDIATELY so we don't accidentally ignore the real file
 								a.processing.Delete(path)
 							}
 						}()
@@ -234,7 +224,6 @@ func (a *App) watchFolder(ctx context.Context) {
 							return
 						}
 
-						// If we reached here, the file is ready and valid
 						success = true
 
 						filename := filepath.Base(path)
@@ -253,8 +242,6 @@ func (a *App) watchFolder(ctx context.Context) {
 	}
 }
 
-// ---- THESE FUNCTIONS ARE EXPOSED TO JAVASCRIPT ----
-
 func (a *App) GetConfig() Config {
 	c := LoadConfig()
 	c.Version = AppVersion
@@ -262,7 +249,6 @@ func (a *App) GetConfig() Config {
 }
 
 func (a *App) SelectDirectory() string {
-	// Updated to use the app.Dialog manager based on the v3 documentation
 	dir, err := a.app.Dialog.OpenFile().
 		SetTitle("Select Directory").
 		CanChooseDirectories(true).
@@ -287,7 +273,7 @@ func (a *App) SelectWatchDirectory() string {
 		conf.WatchDir = dir
 		SaveConfig(conf)
 		a.mu.Unlock()
-		a.StartWatcher() // Restart the watcher loop on the new directory
+		a.StartWatcher()
 		fmt.Println("--> Watch directory updated to:", dir)
 	}
 	return dir
@@ -303,7 +289,6 @@ func (a *App) SaveSetup(path string) error {
 	}
 	a.mu.Unlock()
 	fmt.Println("--> Saved new Base Library Path:", path)
-	// Immediately register KiCad tables and env var so parts appear without restart
 	InitializeKiCadLibraries(conf)
 	return nil
 }
@@ -332,14 +317,13 @@ func (a *App) AddRepository(name string, url string) error {
 	}
 
 	a.mu.Lock()
-	conf = LoadConfig() // reload in case another goroutine modified it during the clone
+	conf = LoadConfig()
 	conf.Repositories = append(conf.Repositories, Repository{Name: name, URL: url})
 	SaveConfig(conf)
 	a.mu.Unlock()
 	return nil
 }
 
-// RemoveRepository unlinks a repository from the app config without deleting files on disk.
 func (a *App) RemoveRepository(repoName string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -417,7 +401,6 @@ func (a *App) DeleteCategory(name string) error {
 	return nil
 }
 
-// SetDefaultRepository marks a repository as the default import target.
 func (a *App) SetDefaultRepository(repoName string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -438,7 +421,6 @@ func (a *App) SetDefaultRepository(repoName string) error {
 	return nil
 }
 
-// UndoAction reverts a previously imported component
 func (a *App) UndoAction(id string) bool {
 	a.mu.Lock()
 	conf := LoadConfig()
@@ -448,7 +430,7 @@ func (a *App) UndoAction(id string) bool {
 
 	for _, item := range conf.History {
 		if item.ID == id {
-			target = item // copy by value — safe after slice is reassigned below
+			target = item
 			found = true
 		} else {
 			newHistory = append(newHistory, item)
@@ -540,7 +522,6 @@ func (a *App) isValidKiCadItem(path string) bool {
 	return false
 }
 
-// extractAssets is a helper function to cleanly handle getting files out of a zip or folder.
 func extractAssets(fullPath string) (*KiCadAssets, string, error) {
 	fileInfo, err := os.Stat(fullPath)
 	if err != nil {
@@ -618,7 +599,6 @@ func extractAssets(fullPath string) (*KiCadAssets, string, error) {
 	return assets, tempDir, nil
 }
 
-// CheckConflicts scans the target library locations and checks if any files with matching names already exist.
 func (a *App) CheckConflicts(filename string, category string, repoName string) ([]string, error) {
 	a.mu.Lock()
 	conf := LoadConfig()
@@ -656,7 +636,6 @@ func (a *App) CheckConflicts(filename string, category string, repoName string) 
 	targetRepoRoot := filepath.Join(baseLibPath, repoName)
 	var conflicts []string
 
-	// --- NEW: Try to auto-detect the component name to predict renamed files ---
 	var autoName string
 	if assets.SymbolPath != "" {
 		srcBytes, _ := os.ReadFile(assets.SymbolPath)
@@ -739,7 +718,6 @@ func (a *App) ProcessFile(filename string, category string, repoName string, con
 		}
 	}
 
-	// Safely add category and auto-seed keywords to the dictionary
 	conf.AddCustomCategory(category)
 	SaveConfig(conf)
 
@@ -747,7 +725,7 @@ func (a *App) ProcessFile(filename string, category string, repoName string, con
 	watchDir := conf.WatchDir
 	a.mu.Unlock()
 
-	// --- Phase 2: heavy file I/O (no lock held) ---
+	// --- Phase 2: extract assets ---
 	fullPath := filename
 	if !filepath.IsAbs(fullPath) {
 		fullPath = filepath.Join(watchDir, filename)
@@ -768,60 +746,55 @@ func (a *App) ProcessFile(filename string, category string, repoName string, con
 	targetRepoRoot := filepath.Join(baseLibPath, repoName)
 	commitMsg := fmt.Sprintf("Added new part from %s into %s", filepath.Base(fullPath), category)
 
-	// --- Phase 2.5: Pre-emptive pull to minimise the conflict window ---
+	// --- Phase 2.5: Pre-Flight Sync ---
+	// Safely stash manual edits, pull newest, and pop manual edits back on top
 	isGit := isGitRepository(targetRepoRoot)
 	if isGit {
 		a.app.Event.Emit("sync-status", "syncing")
 		if pullErr := GitPull(targetRepoRoot); pullErr != nil {
-			fmt.Printf("    [Git Warning] Pre-emptive pull skipped: %v. Proceeding in local-only mode.\n", pullErr)
+			fmt.Printf("    [Git Warning] Pre-flight pull failed: %v. Proceeding in local-only mode.\n", pullErr)
 			a.app.Event.Emit("sync-status", "warning")
-			isGit = false
 		}
 	}
 
-	// --- Phase 3: Integrate → Commit → Push, with retry on push rejection ---
-	const maxPushRetries = 3
+	// --- Phase 3: Integrate (Inject new Zip files into the clean repo) ---
 	var addedFiles []string
 	var master, backup string
-	pushed := false
+	var intErr error
 
-	for attempt := 0; attempt < maxPushRetries; attempt++ {
-		if attempt > 0 {
-			fmt.Printf("    [Git] Push rejected, retrying (%d/%d)...\n", attempt, maxPushRetries-1)
-			a.app.Event.Emit("sync-status", "syncing")
-
-			if resetErr := GitResetLastCommit(targetRepoRoot); resetErr != nil {
-				fmt.Printf("    [Git Error] Reset failed: %v. Saving locally.\n", resetErr)
-				break
-			}
-			if pullErr := GitPull(targetRepoRoot); pullErr != nil {
-				fmt.Printf("    [Git Warning] Re-pull failed: %v. Saving locally.\n", pullErr)
-				break
-			}
-		}
-
-		var intErr error
-		addedFiles, master, backup, intErr = IntegrateParts(assets, category, targetRepoRoot, repoName, conflictStrategy, newName)
-		if intErr != nil {
-			return fmt.Errorf("integration failed: %w", intErr)
-		}
-
-		if !isGit {
-			pushed = true
-			break
-		}
-
-		var pushErr error
-		pushed, pushErr = GitCommitAndPush(targetRepoRoot, commitMsg)
-		if pushErr != nil {
-			return fmt.Errorf("git sync error: %w", pushErr)
-		}
-		if pushed {
-			break
-		}
+	addedFiles, master, backup, intErr = IntegrateParts(assets, category, targetRepoRoot, repoName, conflictStrategy, newName)
+	if intErr != nil {
+		return fmt.Errorf("integration failed: %w", intErr)
 	}
 
+	// --- Phase 4: Commit & Push ---
+	// Pushes the manual edits AND the new zip part seamlessly.
 	if isGit {
+		const maxPushRetries = 3
+		pushed := false
+
+		for attempt := 0; attempt < maxPushRetries; attempt++ {
+			if attempt > 0 {
+				fmt.Printf("    [Git] Push rejected, pulling remote changes before retry (%d/%d)...\n", attempt, maxPushRetries-1)
+				a.app.Event.Emit("sync-status", "syncing")
+
+				// Safe re-pull (rebases our local commit on top of any remote changes teammates just pushed)
+				if pullErr := GitPull(targetRepoRoot); pullErr != nil {
+					fmt.Printf("    [Git Warning] Re-pull failed: %v. Saving locally.\n", pullErr)
+					break
+				}
+			}
+
+			var pushErr error
+			pushed, pushErr = GitCommitAndPush(targetRepoRoot, commitMsg)
+			if pushErr != nil {
+				return fmt.Errorf("git sync error: %w", pushErr)
+			}
+			if pushed {
+				break
+			}
+		}
+
 		if pushed {
 			a.app.Event.Emit("sync-status", "synced")
 		} else {
@@ -832,7 +805,7 @@ func (a *App) ProcessFile(filename string, category string, repoName string, con
 
 	fmt.Println("--> Successfully integrated parts into", repoName)
 
-	// --- Phase 4: lock again to append history and save ---
+	// --- Phase 5: lock again to append history and save ---
 	newItem := HistoryItem{
 		ID:           fmt.Sprintf("%d", time.Now().UnixNano()),
 		Timestamp:    time.Now().Unix(),
@@ -845,10 +818,9 @@ func (a *App) ProcessFile(filename string, category string, repoName string, con
 	}
 
 	a.mu.Lock()
-	conf = LoadConfig() // reload so we don't clobber concurrent changes
+	conf = LoadConfig()
 	conf.History = append(conf.History, newItem)
 
-	// Increased history size to 10 entries instead of 5
 	if len(conf.History) > 10 {
 		conf.History = conf.History[len(conf.History)-10:]
 	}
@@ -873,14 +845,12 @@ func (a *App) HideWindow() {
 	macDeactivate()
 }
 
-// BrowseLibrary scans all repo symbol directories and returns a flat list of imported parts.
 func (a *App) BrowseLibrary() []LibraryPart {
 	conf := LoadConfig()
 	if conf.BaseLibPath == "" {
 		return nil
 	}
 
-	// Only match top-level symbols (2-space indent = depth-1 inside kicad_symbol_lib)
 	topLevelRe := regexp.MustCompile(`(?m)^  \(symbol "([^"]+)"`)
 
 	var parts []LibraryPart
@@ -911,7 +881,6 @@ func (a *App) BrowseLibrary() []LibraryPart {
 		}
 	}
 
-	// Sort alphabetically by name for consistent display
 	for i := 1; i < len(parts); i++ {
 		for j := i; j > 0 && strings.ToLower(parts[j].Name) < strings.ToLower(parts[j-1].Name); j-- {
 			parts[j], parts[j-1] = parts[j-1], parts[j]
@@ -920,7 +889,6 @@ func (a *App) BrowseLibrary() []LibraryPart {
 	return parts
 }
 
-// FindDuplicates checks if the incoming file's symbol already exists in any repo/category.
 func (a *App) FindDuplicates(filename string) ([]DuplicateInfo, error) {
 	conf := LoadConfig()
 	if conf.BaseLibPath == "" {
@@ -1015,7 +983,6 @@ func (a *App) GetItemSummary(filename string) string {
 			return nil
 		})
 	} else if strings.HasSuffix(strings.ToLower(fullPath), ".zip") {
-		// Read entire zip into memory instantly to prevent file locking
 		data, err := os.ReadFile(fullPath)
 		if err == nil {
 			bytesReader := bytes.NewReader(data)
@@ -1057,16 +1024,13 @@ func (a *App) GuessCategory(filename string) string {
 		fullPath = filepath.Join(conf.WatchDir, filename)
 	}
 
-	// 1. Targeted regex: Extract ONLY the official description and keywords fields
 	descRegex := regexp.MustCompile(`(?i)\(property\s+"(?:ki_description|ki_keywords)"\s+"([^"]+)"`)
 
-	// Improved Punctuation filter: Added semicolon, colon, pipe, and underscore
 	f := func(c rune) bool {
 		return c == ' ' || c == ',' || c == '.' || c == '-' || c == '/' ||
 			c == '(' || c == ')' || c == ';' || c == ':' || c == '|' || c == '_'
 	}
 
-	// Internal helper to score content based on the longest keyword match
 	scanContent := func(content string) (string, int) {
 		matches := descRegex.FindAllStringSubmatch(content, -1)
 		if len(matches) == 0 {
@@ -1110,12 +1074,10 @@ func (a *App) GuessCategory(filename string) string {
 	var finalMatch string
 	var maxScore int
 
-	// Logic to capture the best match across multiple files (or single file)
 	processResult := func(match string, score int) {
 		if score > maxScore {
 			maxScore = score
 			finalMatch = match
-			// fmt.Printf("--> Scored: %s (%d) | Found in: %s\n", match, score, filepath.Base(fullPath))
 		}
 	}
 
@@ -1155,15 +1117,12 @@ func (a *App) GuessCategory(filename string) string {
 	return finalMatch
 }
 
-// UpdateInfo is returned by CheckForUpdates.
 type UpdateInfo struct {
 	HasUpdate     bool   `json:"hasUpdate"`
 	LatestVersion string `json:"latestVersion"`
 	ReleaseURL    string `json:"releaseURL"`
 }
 
-// CheckForUpdates queries the GitHub Releases API and returns whether a newer
-// version is available. Checks are throttled to once per 24 hours.
 func (a *App) CheckForUpdates() UpdateInfo {
 	const releaseURL = "https://github.com/MHeis22/KiCadLibraryManager/releases/latest"
 	const apiURL = "https://api.github.com/repos/MHeis22/KiCadLibraryManager/releases/latest"
@@ -1172,7 +1131,6 @@ func (a *App) CheckForUpdates() UpdateInfo {
 	conf := LoadConfig()
 	a.mu.Unlock()
 
-	// Throttle: skip if checked within the last 24 hours.
 	if conf.LastUpdateCheck != "" {
 		if t, err := time.Parse(time.RFC3339, conf.LastUpdateCheck); err == nil {
 			if time.Since(t) < 24*time.Hour {
@@ -1181,7 +1139,6 @@ func (a *App) CheckForUpdates() UpdateInfo {
 		}
 	}
 
-	// Call GitHub API with a short timeout.
 	client := &http.Client{Timeout: 5 * time.Second}
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
@@ -1201,14 +1158,12 @@ func (a *App) CheckForUpdates() UpdateInfo {
 		return UpdateInfo{}
 	}
 
-	// Update last-checked timestamp regardless of whether an update was found.
 	a.mu.Lock()
 	conf = LoadConfig()
 	conf.LastUpdateCheck = time.Now().UTC().Format(time.RFC3339)
 	SaveConfig(conf)
 	a.mu.Unlock()
 
-	// Strip leading V/v prefix for comparison (e.g. "V1.15" -> "1.15").
 	latest := strings.TrimLeft(result.TagName, "Vv")
 	if latest == "" || latest == AppVersion {
 		return UpdateInfo{}
@@ -1221,8 +1176,6 @@ func (a *App) CheckForUpdates() UpdateInfo {
 	}
 }
 
-// DismissUpdate saves the dismissed version to config so the popup is
-// not shown again for that specific release.
 func (a *App) DismissUpdate(version string) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -1231,7 +1184,6 @@ func (a *App) DismissUpdate(version string) {
 	SaveConfig(conf)
 }
 
-// OpenReleaseURL opens the GitHub releases page in the default browser.
 func (a *App) OpenReleaseURL() {
 	application.Get().Browser.OpenURL("https://github.com/MHeis22/KiCadLibraryManager/releases/latest")
 }

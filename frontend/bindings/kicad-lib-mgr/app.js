@@ -28,7 +28,6 @@ export function AddRepository(name, url) {
 }
 
 /**
- * BrowseLibrary scans all repo symbol directories and returns a flat list of imported parts.
  * @returns {$CancellablePromise<$models.LibraryPart[]>}
  */
 export function BrowseLibrary() {
@@ -38,7 +37,6 @@ export function BrowseLibrary() {
 }
 
 /**
- * CheckConflicts scans the target library locations and checks if any files with matching names already exist.
  * @param {string} filename
  * @param {string} category
  * @param {string} repoName
@@ -51,8 +49,6 @@ export function CheckConflicts(filename, category, repoName) {
 }
 
 /**
- * CheckForUpdates queries the GitHub Releases API and returns whether a newer
- * version is available. Checks are throttled to once per 24 hours.
  * @returns {$CancellablePromise<$models.UpdateInfo>}
  */
 export function CheckForUpdates() {
@@ -70,8 +66,6 @@ export function DeleteCategory(name) {
 }
 
 /**
- * DismissUpdate saves the dismissed version to config so the popup is
- * not shown again for that specific release.
  * @param {string} version
  * @returns {$CancellablePromise<void>}
  */
@@ -80,7 +74,6 @@ export function DismissUpdate(version) {
 }
 
 /**
- * FindDuplicates checks if the incoming file's symbol already exists in any repo/category.
  * @param {string} filename
  * @returns {$CancellablePromise<$models.DuplicateInfo[]>}
  */
@@ -131,7 +124,6 @@ export function HideWindow() {
 }
 
 /**
- * OpenReleaseURL opens the GitHub releases page in the default browser.
  * @returns {$CancellablePromise<void>}
  */
 export function OpenReleaseURL() {
@@ -151,7 +143,6 @@ export function ProcessFile(filename, category, repoName, conflictStrategy, newN
 }
 
 /**
- * RemoveRepository unlinks a repository from the app config without deleting files on disk.
  * @param {string} repoName
  * @returns {$CancellablePromise<void>}
  */
@@ -191,7 +182,6 @@ export function SelectWatchDirectory() {
 }
 
 /**
- * SetDefaultRepository marks a repository as the default import target.
  * @param {string} repoName
  * @returns {$CancellablePromise<void>}
  */
@@ -215,7 +205,6 @@ export function StartWatcher() {
 }
 
 /**
- * SyncAllRepositories runs git pull --rebase on every git-backed repository.
  * @returns {$CancellablePromise<void>}
  */
 export function SyncAllRepositories() {
@@ -232,7 +221,6 @@ export function ToggleAutoStart(enable) {
 }
 
 /**
- * UndoAction reverts a previously imported component
  * @param {string} id
  * @returns {$CancellablePromise<boolean>}
  */
