@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1152,4 +1153,85 @@ func (a *App) GuessCategory(filename string) string {
 	}
 
 	return finalMatch
+}
+
+// UpdateInfo is returned by CheckForUpdates.
+type UpdateInfo struct {
+	HasUpdate     bool   `json:"hasUpdate"`
+	LatestVersion string `json:"latestVersion"`
+	ReleaseURL    string `json:"releaseURL"`
+}
+
+// CheckForUpdates queries the GitHub Releases API and returns whether a newer
+// version is available. Checks are throttled to once per 24 hours.
+func (a *App) CheckForUpdates() UpdateInfo {
+	const releaseURL = "https://github.com/MHeis22/KiCadLibraryManager/releases/latest"
+	const apiURL = "https://api.github.com/repos/MHeis22/KiCadLibraryManager/releases/latest"
+
+	a.mu.Lock()
+	conf := LoadConfig()
+	a.mu.Unlock()
+
+	// Throttle: skip if checked within the last 24 hours.
+	if conf.LastUpdateCheck != "" {
+		if t, err := time.Parse(time.RFC3339, conf.LastUpdateCheck); err == nil {
+			if time.Since(t) < 24*time.Hour {
+				return UpdateInfo{}
+			}
+		}
+	}
+
+	// Call GitHub API with a short timeout.
+	client := &http.Client{Timeout: 5 * time.Second}
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return UpdateInfo{}
+	}
+	req.Header.Set("User-Agent", "KiCadLibraryManager/"+AppVersion)
+	resp, err := client.Do(req)
+	if err != nil {
+		return UpdateInfo{}
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		TagName string `json:"tag_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return UpdateInfo{}
+	}
+
+	// Update last-checked timestamp regardless of whether an update was found.
+	a.mu.Lock()
+	conf = LoadConfig()
+	conf.LastUpdateCheck = time.Now().UTC().Format(time.RFC3339)
+	SaveConfig(conf)
+	a.mu.Unlock()
+
+	// Strip leading V/v prefix for comparison (e.g. "V1.15" -> "1.15").
+	latest := strings.TrimLeft(result.TagName, "Vv")
+	if latest == "" || latest == AppVersion {
+		return UpdateInfo{}
+	}
+
+	return UpdateInfo{
+		HasUpdate:     true,
+		LatestVersion: latest,
+		ReleaseURL:    releaseURL,
+	}
+}
+
+// DismissUpdate saves the dismissed version to config so the popup is
+// not shown again for that specific release.
+func (a *App) DismissUpdate(version string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	conf := LoadConfig()
+	conf.DismissedUpdateVersion = version
+	SaveConfig(conf)
+}
+
+// OpenReleaseURL opens the GitHub releases page in the default browser.
+func (a *App) OpenReleaseURL() {
+	application.Get().Browser.OpenURL("https://github.com/MHeis22/KiCadLibraryManager/releases/latest")
 }

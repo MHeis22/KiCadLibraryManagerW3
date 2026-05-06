@@ -12,5 +12,6 @@ export {
     DuplicateInfo,
     HistoryItem,
     LibraryPart,
-    Repository
+    Repository,
+    UpdateInfo
 } from "./models.js";

@@ -1,22 +1,22 @@
-name: Build Cross-Platform App
+name: Package Cross-Platform App
 on: 
   workflow_dispatch:
 
 jobs:
-  build:
+  package:
     strategy:
       matrix:
         # Define the OS, Wails platform name, and output artifact name
         include:
           - os: ubuntu-latest
             platform: linux
-            artifact: linux-binary
+            artifact: linux-package
           - os: macos-latest
             platform: darwin
-            artifact: mac-binary
+            artifact: mac-package
           - os: windows-latest
             platform: windows
-            artifact: windows-binary
+            artifact: windows-package
 
     runs-on: ${{ matrix.os }}
     steps:
@@ -36,12 +36,13 @@ jobs:
       - name: Install Wails v3
         run: go install -v github.com/wailsapp/wails/v3/cmd/wails3@latest
 
-      - name: Build Application
-        # Uses the matrix platform variable automatically
-        run: wails3 task build PLATFORM=${{ matrix.platform }} CONFIG=production
+      - name: Package Application
+        # Uses the matrix platform variable automatically with the package task
+        run: wails3 task package PLATFORM=${{ matrix.platform }} CONFIG=production
 
-      - name: Upload Binary
+      - name: Upload Package
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
+          # The package task outputs the bundled apps/installers to the bin/ directory
           path: bin/

@@ -20,7 +20,10 @@ import {
     RenameCategory,
     DeleteCategory,
     BrowseLibrary,
-    FindDuplicates
+    FindDuplicates,
+    CheckForUpdates,
+    DismissUpdate,
+    OpenReleaseURL
 } from '../bindings/kicad-lib-mgr/app.js';
 
 const setupView = document.getElementById('setup-view');
@@ -111,12 +114,38 @@ let browsePartsCache = null; // invalidated on loadConfig()
 
 document.addEventListener("DOMContentLoaded", () => {
     setTimeout(() => {
-        loadConfig().catch(err => {
-            console.error("Critical initialization failure:", err);
-            document.body.innerHTML = `<h2 style="color:#ff5555; padding:20px;">Startup Error: Failed to connect to background service.</h2>`;
-        });
+        loadConfig()
+            .then(() => checkForUpdates())
+            .catch(err => {
+                console.error("Critical initialization failure:", err);
+                document.body.innerHTML = `<h2 style="color:#ff5555; padding:20px;">Startup Error: Failed to connect to background service.</h2>`;
+            });
     }, 100);
+
+    document.getElementById('update-dismiss-btn').addEventListener('click', async () => {
+        const ver = document.getElementById('update-latest-ver').textContent.replace(/^v/, '');
+        await DismissUpdate(ver);
+        document.getElementById('update-modal').style.display = 'none';
+    });
+
+    document.getElementById('update-download-btn').addEventListener('click', async () => {
+        await OpenReleaseURL();
+        document.getElementById('update-modal').style.display = 'none';
+    });
 });
+
+async function checkForUpdates() {
+    try {
+        const info = await CheckForUpdates();
+        if (!info || !info.hasUpdate) return;
+        if (info.latestVersion === currentConfig?.dismissedUpdateVersion) return;
+        document.getElementById('update-current-ver').textContent = `v${currentConfig?.version ?? ''}`;
+        document.getElementById('update-latest-ver').textContent = `v${info.latestVersion}`;
+        document.getElementById('update-modal').style.display = 'flex';
+    } catch (_) {
+        // Silently ignore — update check is non-critical
+    }
+}
 
 async function loadConfig() {
     browsePartsCache = null; // invalidate on every config reload

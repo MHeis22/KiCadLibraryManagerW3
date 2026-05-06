@@ -85,7 +85,8 @@ Settings are stored at:
 
 | Platform | Path |
 |---|---|
-| macOS / Linux | `~/.config/KiCadLibMgr/config.json` |
+| Linux | `~/.config/KiCadLibMgr/config.json` |
+| macOS | `~/Library/Application Support/KiCadLibMgr/config.json` |
 | Windows | `%APPDATA%\KiCadLibMgr\config.json` |
 
 The config file is managed automatically by the app. Direct edits are possible but not required.

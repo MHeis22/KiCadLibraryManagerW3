@@ -51,11 +51,32 @@ export function CheckConflicts(filename, category, repoName) {
 }
 
 /**
+ * CheckForUpdates queries the GitHub Releases API and returns whether a newer
+ * version is available. Checks are throttled to once per 24 hours.
+ * @returns {$CancellablePromise<$models.UpdateInfo>}
+ */
+export function CheckForUpdates() {
+    return $Call.ByID(2675659504).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType3($result);
+    }));
+}
+
+/**
  * @param {string} name
  * @returns {$CancellablePromise<void>}
  */
 export function DeleteCategory(name) {
     return $Call.ByID(988551738, name);
+}
+
+/**
+ * DismissUpdate saves the dismissed version to config so the popup is
+ * not shown again for that specific release.
+ * @param {string} version
+ * @returns {$CancellablePromise<void>}
+ */
+export function DismissUpdate(version) {
+    return $Call.ByID(305643194, version);
 }
 
 /**
@@ -65,7 +86,7 @@ export function DeleteCategory(name) {
  */
 export function FindDuplicates(filename) {
     return $Call.ByID(2158640096, filename).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType4($result);
+        return $$createType5($result);
     }));
 }
 
@@ -74,7 +95,7 @@ export function FindDuplicates(filename) {
  */
 export function GetConfig() {
     return $Call.ByID(1200034045).then(/** @type {($result: any) => any} */(($result) => {
-        return $$createType5($result);
+        return $$createType6($result);
     }));
 }
 
@@ -107,6 +128,14 @@ export function HandleDroppedItem(path) {
  */
 export function HideWindow() {
     return $Call.ByID(542966029);
+}
+
+/**
+ * OpenReleaseURL opens the GitHub releases page in the default browser.
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenReleaseURL() {
+    return $Call.ByID(1293205979);
 }
 
 /**
@@ -215,6 +244,7 @@ export function UndoAction(id) {
 const $$createType0 = $models.LibraryPart.createFrom;
 const $$createType1 = $Create.Array($$createType0);
 const $$createType2 = $Create.Array($Create.Any);
-const $$createType3 = $models.DuplicateInfo.createFrom;
-const $$createType4 = $Create.Array($$createType3);
-const $$createType5 = $models.Config.createFrom;
+const $$createType3 = $models.UpdateInfo.createFrom;
+const $$createType4 = $models.DuplicateInfo.createFrom;
+const $$createType5 = $Create.Array($$createType4);
+const $$createType6 = $models.Config.createFrom;

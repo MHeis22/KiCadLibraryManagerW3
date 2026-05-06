@@ -78,6 +78,20 @@ export class Config {
              */
             this["version"] = undefined;
         }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["lastUpdateCheck"] = undefined;
+        }
+        if (/** @type {any} */(false)) {
+            /**
+             * @member
+             * @type {string | undefined}
+             */
+            this["dismissedUpdateVersion"] = undefined;
+        }
 
         Object.assign(this, $$source);
     }
@@ -318,6 +332,51 @@ export class Repository {
     static createFrom($$source = {}) {
         let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
         return new Repository(/** @type {Partial<Repository>} */($$parsedSource));
+    }
+}
+
+/**
+ * UpdateInfo is returned by CheckForUpdates.
+ */
+export class UpdateInfo {
+    /**
+     * Creates a new UpdateInfo instance.
+     * @param {Partial<UpdateInfo>} [$$source = {}] - The source object to create the UpdateInfo.
+     */
+    constructor($$source = {}) {
+        if (!("hasUpdate" in $$source)) {
+            /**
+             * @member
+             * @type {boolean}
+             */
+            this["hasUpdate"] = false;
+        }
+        if (!("latestVersion" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["latestVersion"] = "";
+        }
+        if (!("releaseURL" in $$source)) {
+            /**
+             * @member
+             * @type {string}
+             */
+            this["releaseURL"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new UpdateInfo instance from a string or object.
+     * @param {any} [$$source = {}]
+     * @returns {UpdateInfo}
+     */
+    static createFrom($$source = {}) {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new UpdateInfo(/** @type {Partial<UpdateInfo>} */($$parsedSource));
     }
 }
 
