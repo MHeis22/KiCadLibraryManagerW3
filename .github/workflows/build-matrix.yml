@@ -5,8 +5,8 @@ on:
 jobs:
   package:
     strategy:
+      fail-fast: false # Prevents one OS failure from instantly canceling the others
       matrix:
-        # Define the OS, Wails platform name, and output artifact name
         include:
           - os: ubuntu-latest
             platform: linux
@@ -22,11 +22,14 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Ensures full git history is pulled to prevent git 128 errors
 
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache: false # Bypasses the tar exit code 2 cache corruption issue
 
       # Linux only: Install GTK/Webkit dependencies
       - name: Install Linux Dependencies
@@ -37,12 +40,10 @@ jobs:
         run: go install -v github.com/wailsapp/wails/v3/cmd/wails3@latest
 
       - name: Package Application
-        # Uses the matrix platform variable automatically with the package task
         run: wails3 task package PLATFORM=${{ matrix.platform }} CONFIG=production
 
       - name: Upload Package
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          # The package task outputs the bundled apps/installers to the bin/ directory
           path: bin/
